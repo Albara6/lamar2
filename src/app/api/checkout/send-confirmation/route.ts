@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resend = new Resend(process.env.RESEND_API_KEY!)
 
 export async function POST(request: Request) {
   try {
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     // Send confirmation email
     const { data, error } = await resend.emails.send({
-      from: 'Crazy Chicken <orders@crazychicken.com>',
+      from: 'Crazy Chicken <onboarding@resend.dev>',
       to: customer.email,
       subject: `Order Confirmation #${order.id}`,
       html: emailHtml
