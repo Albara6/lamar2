@@ -46,13 +46,23 @@ export async function POST(request: Request) {
       }
     }
 
-    // In development or if Twilio is not configured, return the code directly
-    if (process.env.NODE_ENV === 'development' || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+    // Always return the code in development mode
+    if (process.env.NODE_ENV === 'development') {
       console.log(`DEV MODE: Verification code for ${phoneNumber}: ${verificationCode}`)
       return NextResponse.json({ 
         success: true,
         message: 'Verification code sent successfully',
         devCode: verificationCode // Only for development
+      })
+    }
+
+    // Check if Twilio is configured
+    if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
+      console.log(`DEMO MODE: Verification code for ${phoneNumber}: ${verificationCode}`)
+      return NextResponse.json({ 
+        success: true,
+        message: 'Verification code sent successfully',
+        devCode: verificationCode // For demo purposes
       })
     }
 

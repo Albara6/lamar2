@@ -386,9 +386,21 @@ export default function CheckoutPage() {
                       border: '2px solid #e5e7eb',
                       borderRadius: '0.5rem',
                       fontSize: '1rem',
-                      marginBottom: '1.5rem'
+                      marginBottom: '0.75rem'
                     }}
                   />
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: '#6b7280',
+                    marginBottom: '1.5rem',
+                    lineHeight: '1.25',
+                    padding: '0.75rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    By providing your phone number, you agree to receive order updates via SMS. Message & data rates may apply. Your information will be processed in accordance with our Privacy Policy and the AP2 10DC regulations for food service establishments. You can opt-out at any time by replying STOP to any message. Standard carrier fees may apply.
+                  </div>
                   <button
                     onClick={sendVerificationCode}
                     disabled={loading}

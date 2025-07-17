@@ -19,9 +19,9 @@ export async function POST(request: Request) {
       )
     }
 
-    // In development mode, accept any 6-digit code
-    if (process.env.NODE_ENV === 'development') {
-      // Skip verification in development
+    // In development or demo mode, accept any 6-digit code
+    if (process.env.NODE_ENV === 'development' || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      // Skip verification in development/demo mode
     } else {
       // Find the most recent unused verification code for this phone number
       const { data: verification, error: verifyError } = await supabaseAdmin
