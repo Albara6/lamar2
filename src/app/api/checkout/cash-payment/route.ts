@@ -1,81 +1,31 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function POST(request: Request) {
   try {
-    const { customer, paymentMethod, items, total } = await request.json()
+    const { customer, items, total, paymentMethod } = await request.json()
 
-    if (!customer || !items || !total || paymentMethod !== 'cash') {
-      return NextResponse.json(
-        { error: 'Invalid request data' },
-        { status: 400 }
-      )
-    }
+    // Generate order ID
+    const orderId = uuidv4()
 
-    // Create or update customer in database
-    const { data: dbCustomer, error: customerError } = await supabaseAdmin
-      .from('customers')
-      .select('*')
-      .eq('phone_number', customer.phone)
-      .single()
-
-    let customerId = dbCustomer?.id
-
-    if (!dbCustomer) {
-      const { data: newCustomer, error: createError } = await supabaseAdmin
-        .from('customers')
-        .insert({
-          phone_number: customer.phone,
-          name: customer.name,
-          email: customer.email,
-          is_verified: true
-        })
-        .select()
-        .single()
-
-      if (createError) {
-        console.error('Error creating customer:', createError)
-        return NextResponse.json(
-          { error: 'Failed to create customer' },
-          { status: 500 }
-        )
-      }
-      customerId = newCustomer.id
-    } else {
-      // Update existing customer with new info
-      const { error: updateError } = await supabaseAdmin
-        .from('customers')
-        .update({
-          name: customer.name,
-          email: customer.email,
-          is_verified: true
-        })
-        .eq('id', dbCustomer.id)
-
-      if (updateError) {
-        console.error('Error updating customer:', updateError)
-      }
-    }
-
-    // Create order in database with pending payment status for cash
-    const { data: order, error: orderError } = await supabaseAdmin
+    // Create order in database
+    const { error: orderError } = await supabaseAdmin
       .from('orders')
       .insert({
-        customer_id: customerId,
-        total_amount: total,
-        payment_method: 'cash',
-        payment_status: 'pending', // Will be marked as paid when customer picks up
-        order_status: 'pending',
-        phone_verified: true,
+        id: orderId,
         customer_name: customer.name,
         customer_email: customer.email,
-        customer_phone: customer.phone
+        customer_phone: customer.phone,
+        phone_verified: customer.isVerified,
+        total_amount: total,
+        payment_method: paymentMethod,
+        payment_status: 'pending',
+        order_status: 'pending'
       })
-      .select()
-      .single()
 
     if (orderError) {
-      console.error('Error creating order:', orderError)
+      console.error('Order creation error:', orderError)
       return NextResponse.json(
         { error: 'Failed to create order' },
         { status: 500 }
@@ -83,63 +33,64 @@ export async function POST(request: Request) {
     }
 
     // Create order items
-    const orderItems = []
-    
-    for (const item of items) {
-      const { data: orderItem, error: itemError } = await supabaseAdmin
-        .from('order_items')
-        .insert({
-          order_id: order.id,
-          menu_item_id: item.menuItem.id,
-          menu_item_size_id: item.selectedSize?.id || null,
-          quantity: item.quantity,
-          unit_price: item.totalPrice / item.quantity,
-          total_price: item.totalPrice,
-          menu_item_name: item.menuItem.name,
-          size_name: item.selectedSize?.name || null,
-          special_instructions: item.specialInstructions || null
-        })
-        .select()
-        .single()
+    const orderItems = items.map((item: any) => ({
+      order_id: orderId,
+      menu_item_id: item.menuItem.id,
+      menu_item_size_id: item.selectedSize?.id,
+      quantity: item.quantity,
+      unit_price: item.totalPrice / item.quantity,
+      total_price: item.totalPrice,
+      special_instructions: item.specialInstructions
+    }))
 
-      if (itemError) {
-        console.error('Error creating order item:', itemError)
-        continue
-      }
+    const { error: itemsError } = await supabaseAdmin
+      .from('order_items')
+      .insert(orderItems)
 
-      orderItems.push(orderItem)
+    if (itemsError) {
+      console.error('Order items creation error:', itemsError)
+      return NextResponse.json(
+        { error: 'Failed to create order items' },
+        { status: 500 }
+      )
+    }
 
-      // Create order item modifiers
-      if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-        const modifiers = item.selectedModifiers.map((modifier: any) => ({
-          order_item_id: orderItem.id,
-          modifier_item_id: modifier.id,
-          modifier_name: modifier.name,
-          price: modifier.price
-        }))
+    // Create order item modifiers
+    const orderItemModifiers = items.flatMap((item: any, index: number) => 
+      item.selectedModifiers.map((modifier: any) => ({
+        order_item_id: `${orderId}_${index}`,
+        modifier_item_id: modifier.id,
+        price: modifier.price
+      }))
+    )
 
-        const { error: modifiersError } = await supabaseAdmin
-          .from('order_item_modifiers')
-          .insert(modifiers)
+    if (orderItemModifiers.length > 0) {
+      const { error: modifiersError } = await supabaseAdmin
+        .from('order_item_modifiers')
+        .insert(orderItemModifiers)
 
-        if (modifiersError) {
-          console.error('Error creating order modifiers:', modifiersError)
-        }
+      if (modifiersError) {
+        console.error('Order item modifiers creation error:', modifiersError)
+        return NextResponse.json(
+          { error: 'Failed to create order item modifiers' },
+          { status: 500 }
+        )
       }
     }
 
-    // Send confirmation email (we'll implement this next)
+    // Send confirmation email
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/checkout/send-confirmation`, {
+      await fetch('/api/checkout/send-confirmation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: order.id,
-          customerEmail: customer.email,
-          customerName: customer.name,
-          items: items,
-          total: total,
-          paymentMethod: 'cash'
+          order: {
+            id: orderId,
+            items,
+            total,
+            paymentMethod
+          },
+          customer
         })
       })
     } catch (emailError) {
@@ -149,14 +100,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      orderId: order.id,
+      orderId,
       message: 'Order created successfully'
     })
 
   } catch (error: any) {
     console.error('Cash payment error:', error)
     return NextResponse.json(
-      { error: 'Order creation failed' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
