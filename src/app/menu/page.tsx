@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { ShoppingCart, Plus, Minus, ArrowLeft, X } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
 import { MenuItem, MenuItemSize, ModifierGroup, ModifierItem, MenuItemModifierGroup, CartItem } from '@/types'
+import { useRouter } from 'next/navigation'
 
 interface MenuData {
   menuItems: MenuItem[]
@@ -11,6 +12,7 @@ interface MenuData {
 }
 
 export default function MenuPage() {
+  const router = useRouter()
   const cart = useCartStore()
   const [menuData, setMenuData] = useState<MenuData | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
@@ -181,7 +183,7 @@ export default function MenuPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <button 
-              onClick={() => window.location.href = '/'}
+              onClick={() => router.push('/')}
               style={{
                 padding: '0.5rem',
                 color: 'white',
@@ -773,7 +775,7 @@ export default function MenuPage() {
                   </div>
 
                   <button
-                    onClick={() => window.location.href = '/checkout'}
+                    onClick={() => router.push('/checkout')}
                     style={{
                       width: '100%',
                       backgroundColor: '#dc2626',
@@ -830,7 +832,7 @@ export default function MenuPage() {
             }}
             onClick={(e) => {
               e.stopPropagation()
-              window.location.href = '/checkout'
+              router.push('/checkout')
             }}
           >
             Checkout
