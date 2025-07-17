@@ -1,0 +1,163 @@
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+
+export async function POST(request: Request) {
+  try {
+    const { customer, paymentMethod, items, total } = await request.json()
+
+    if (!customer || !items || !total || paymentMethod !== 'cash') {
+      return NextResponse.json(
+        { error: 'Invalid request data' },
+        { status: 400 }
+      )
+    }
+
+    // Create or update customer in database
+    const { data: dbCustomer, error: customerError } = await supabaseAdmin
+      .from('customers')
+      .select('*')
+      .eq('phone_number', customer.phone)
+      .single()
+
+    let customerId = dbCustomer?.id
+
+    if (!dbCustomer) {
+      const { data: newCustomer, error: createError } = await supabaseAdmin
+        .from('customers')
+        .insert({
+          phone_number: customer.phone,
+          name: customer.name,
+          email: customer.email,
+          is_verified: true
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.error('Error creating customer:', createError)
+        return NextResponse.json(
+          { error: 'Failed to create customer' },
+          { status: 500 }
+        )
+      }
+      customerId = newCustomer.id
+    } else {
+      // Update existing customer with new info
+      const { error: updateError } = await supabaseAdmin
+        .from('customers')
+        .update({
+          name: customer.name,
+          email: customer.email,
+          is_verified: true
+        })
+        .eq('id', dbCustomer.id)
+
+      if (updateError) {
+        console.error('Error updating customer:', updateError)
+      }
+    }
+
+    // Create order in database with pending payment status for cash
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .insert({
+        customer_id: customerId,
+        total_amount: total,
+        payment_method: 'cash',
+        payment_status: 'pending', // Will be marked as paid when customer picks up
+        order_status: 'pending',
+        phone_verified: true,
+        customer_name: customer.name,
+        customer_email: customer.email,
+        customer_phone: customer.phone
+      })
+      .select()
+      .single()
+
+    if (orderError) {
+      console.error('Error creating order:', orderError)
+      return NextResponse.json(
+        { error: 'Failed to create order' },
+        { status: 500 }
+      )
+    }
+
+    // Create order items
+    const orderItems = []
+    
+    for (const item of items) {
+      const { data: orderItem, error: itemError } = await supabaseAdmin
+        .from('order_items')
+        .insert({
+          order_id: order.id,
+          menu_item_id: item.menuItem.id,
+          menu_item_size_id: item.selectedSize?.id || null,
+          quantity: item.quantity,
+          unit_price: item.totalPrice / item.quantity,
+          total_price: item.totalPrice,
+          menu_item_name: item.menuItem.name,
+          size_name: item.selectedSize?.name || null,
+          special_instructions: item.specialInstructions || null
+        })
+        .select()
+        .single()
+
+      if (itemError) {
+        console.error('Error creating order item:', itemError)
+        continue
+      }
+
+      orderItems.push(orderItem)
+
+      // Create order item modifiers
+      if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+        const modifiers = item.selectedModifiers.map((modifier: any) => ({
+          order_item_id: orderItem.id,
+          modifier_item_id: modifier.id,
+          modifier_name: modifier.name,
+          price: modifier.price
+        }))
+
+        const { error: modifiersError } = await supabaseAdmin
+          .from('order_item_modifiers')
+          .insert(modifiers)
+
+        if (modifiersError) {
+          console.error('Error creating order modifiers:', modifiersError)
+        }
+      }
+    }
+
+    // Send confirmation email (we'll implement this next)
+    try {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/checkout/send-confirmation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          customerEmail: customer.email,
+          customerName: customer.name,
+          items: items,
+          total: total,
+          paymentMethod: 'cash'
+        })
+      })
+    } catch (emailError) {
+      console.error('Failed to send confirmation email:', emailError)
+      // Don't fail the order if email fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      orderId: order.id,
+      message: 'Order created successfully'
+    })
+
+  } catch (error: any) {
+    console.error('Cash payment error:', error)
+    return NextResponse.json(
+      { error: 'Order creation failed' },
+      { status: 500 }
+    )
+  }
+} 
