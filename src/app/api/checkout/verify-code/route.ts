@@ -19,33 +19,38 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find the most recent unused verification code for this phone number
-    const { data: verification, error: verifyError } = await supabaseAdmin
-      .from('phone_verifications')
-      .select('*')
-      .eq('phone_number', phoneNumber)
-      .eq('verification_code', verificationCode)
-      .eq('is_used', false)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single()
+    // In development mode, accept any 6-digit code
+    if (process.env.NODE_ENV === 'development') {
+      // Skip verification in development
+    } else {
+      // Find the most recent unused verification code for this phone number
+      const { data: verification, error: verifyError } = await supabaseAdmin
+        .from('phone_verifications')
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .eq('verification_code', verificationCode)
+        .eq('is_used', false)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
 
-    if (verifyError || !verification) {
-      return NextResponse.json(
-        { error: 'Invalid or expired verification code' },
-        { status: 400 }
-      )
-    }
+      if (verifyError || !verification) {
+        return NextResponse.json(
+          { error: 'Invalid or expired verification code' },
+          { status: 400 }
+        )
+      }
 
-    // Mark the verification code as used
-    const { error: updateError } = await supabaseAdmin
-      .from('phone_verifications')
-      .update({ is_used: true })
-      .eq('id', verification.id)
+      // Mark the verification code as used
+      const { error: updateError } = await supabaseAdmin
+        .from('phone_verifications')
+        .update({ is_used: true })
+        .eq('id', verification.id)
 
-    if (updateError) {
-      console.error('Error marking verification as used:', updateError)
+      if (updateError) {
+        console.error('Error marking verification as used:', updateError)
+      }
     }
 
     // Check if this is a returning customer

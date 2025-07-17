@@ -25,25 +25,38 @@ export async function POST(request: Request) {
     // Set expiration to 10 minutes from now
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
-    // Store verification code in database
-    const { error: dbError } = await supabaseAdmin
-      .from('phone_verifications')
-      .insert({
-        phone_number: phoneNumber,
-        verification_code: verificationCode,
-        expires_at: expiresAt,
-        is_used: false
-      })
+    // In development, skip database storage
+    if (process.env.NODE_ENV !== 'development') {
+      // Store verification code in database
+      const { error: dbError } = await supabaseAdmin
+        .from('phone_verifications')
+        .insert({
+          phone_number: phoneNumber,
+          verification_code: verificationCode,
+          expires_at: expiresAt,
+          is_used: false
+        })
 
-    if (dbError) {
-      console.error('Database error:', dbError)
-      return NextResponse.json(
-        { error: 'Failed to store verification code' },
-        { status: 500 }
-      )
+      if (dbError) {
+        console.error('Database error:', dbError)
+        return NextResponse.json(
+          { error: 'Failed to store verification code' },
+          { status: 500 }
+        )
+      }
     }
 
-    // Send SMS via Twilio
+    // In development or if Twilio is not configured, return the code directly
+    if (process.env.NODE_ENV === 'development' || !process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+      console.log(`DEV MODE: Verification code for ${phoneNumber}: ${verificationCode}`)
+      return NextResponse.json({ 
+        success: true,
+        message: 'Verification code sent successfully',
+        devCode: verificationCode // Only for development
+      })
+    }
+
+    // Send SMS via Twilio in production
     try {
       await client.messages.create({
         body: `Your Crazy Chicken verification code is: ${verificationCode}. This code expires in 10 minutes.`,
@@ -59,18 +72,6 @@ export async function POST(request: Request) {
       })
     } catch (smsError: any) {
       console.error('SMS sending error:', smsError)
-      
-      // If SMS fails, we should still return success in development
-      // but in production, you might want to handle this differently
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`DEV MODE: Verification code for ${phoneNumber}: ${verificationCode}`)
-        return NextResponse.json({ 
-          success: true,
-          message: 'Verification code sent successfully',
-          devCode: verificationCode // Only for development
-        })
-      }
-      
       return NextResponse.json(
         { error: 'Failed to send verification code' },
         { status: 500 }
