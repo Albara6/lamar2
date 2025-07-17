@@ -278,6 +278,40 @@ export default function CheckoutPage() {
             <p style={{ opacity: 0.9, margin: 0, marginTop: '0.25rem' }}>
               {cart.items.length} item{cart.items.length !== 1 ? 's' : ''} • ${cart.total.toFixed(2)}
             </p>
+            <div style={{ marginTop: '1rem', maxHeight: '200px', overflowY: 'auto', padding: '0.5rem' }}>
+              {cart.items.map((item, index) => (
+                <div key={index} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '1rem',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  padding: '0.5rem',
+                  borderRadius: '0.5rem',
+                  marginBottom: '0.5rem'
+                }}>
+                  <div style={{ 
+                    width: '50px',
+                    height: '50px',
+                    backgroundColor: item.menuItem.category === 'burgers' ? '#f87171' :
+                                   item.menuItem.category === 'chicken' ? '#fbbf24' : '#34d399',
+                    borderRadius: '0.375rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '1.5rem'
+                  }}>
+                    {item.menuItem.category === 'burgers' ? '🍔' :
+                     item.menuItem.category === 'chicken' ? '🍗' : '🥪'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '600', color: 'white' }}>{item.menuItem.name}</div>
+                    <div style={{ fontSize: '0.875rem', color: 'rgba(255, 255, 255, 0.7)' }}>
+                      {item.quantity}x • ${item.totalPrice.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
