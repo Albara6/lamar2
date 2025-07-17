@@ -53,13 +53,19 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
+  const [isHydrated, setIsHydrated] = useState(false)
 
-  // Redirect if cart is empty
+  // Set hydrated state after component mounts
   useEffect(() => {
-    if (cart.items.length === 0) {
+    setIsHydrated(true)
+  }, [])
+
+  // Redirect if cart is empty (but only after hydration)
+  useEffect(() => {
+    if (isHydrated && cart.items.length === 0) {
       window.location.href = '/menu'
     }
-  }, [cart.items])
+  }, [cart.items, isHydrated])
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '')
