@@ -68,10 +68,13 @@ export async function POST(request: Request) {
 
     // Send SMS via Twilio in production
     try {
+      const toNumber = phoneNumber.startsWith('+1') ? phoneNumber : `+1${phoneNumber}`
+      console.log(`Attempting to send SMS from ${process.env.TWILIO_PHONE_NUMBER} to ${toNumber}`)
+
       await client.messages.create({
         body: `Your Crazy Chicken verification code is: ${verificationCode}. This code expires in 10 minutes.`,
         from: process.env.TWILIO_PHONE_NUMBER!,
-        to: `+1${phoneNumber}`
+        to: toNumber
       })
 
       console.log(`Verification code sent to ${phoneNumber}`)
@@ -82,8 +85,14 @@ export async function POST(request: Request) {
       })
     } catch (smsError: any) {
       console.error('SMS sending error:', smsError)
+      console.error('Error details:', {
+        code: smsError.code,
+        message: smsError.message,
+        status: smsError.status,
+        moreInfo: smsError.moreInfo
+      })
       return NextResponse.json(
-        { error: 'Failed to send verification code' },
+        { error: 'Failed to send verification code: ' + smsError.message },
         { status: 500 }
       )
     }
