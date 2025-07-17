@@ -222,7 +222,9 @@ export default function CheckoutPage() {
 
         setOrderId(data.orderId)
         cart.clearCart()
-        setCurrentStep('confirmation')
+        // Redirect to success page with orderId
+        window.location.href = `/checkout/success?order_id=${data.orderId}`
+        return
       }
     } catch (err: any) {
       setError(err.message)

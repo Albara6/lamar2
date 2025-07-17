@@ -156,9 +156,21 @@ export async function POST(request: Request) {
       // Don't fail the order if email fails
     }
 
+    // Fetch full order details for confirmation page
+    const { data: fullOrder, error: fetchOrderError } = await supabaseAdmin
+      .from('orders')
+      .select(`*, order_items(*, order_item_modifiers(*))`)
+      .eq('id', order.id)
+      .single()
+
+    if (fetchOrderError) {
+      console.error('Error fetching order details:', fetchOrderError)
+    }
+
     return NextResponse.json({
       success: true,
       orderId: order.id,
+      order: fullOrder,
       message: 'Order created successfully'
     })
 

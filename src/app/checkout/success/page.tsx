@@ -10,17 +10,34 @@ function CheckoutSuccessContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const sessionId = searchParams.get('session_id')
   const orderId = searchParams.get('order_id')
+  const sessionId = searchParams.get('session_id')
 
   useEffect(() => {
-    if (sessionId && orderId) {
+    if (orderId) {
+      fetchOrderDetails()
+    } else if (sessionId && orderId) {
       handlePaymentSuccess()
     } else {
-      setError('Missing payment information')
+      setError('Missing order information')
       setLoading(false)
     }
-  }, [sessionId, orderId])
+  }, [orderId, sessionId])
+
+  const fetchOrderDetails = async () => {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}`)
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch order details')
+      }
+      setOrderDetails(data.order)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handlePaymentSuccess = async () => {
     try {
@@ -283,19 +300,7 @@ function CheckoutSuccessContent() {
 
 export default function CheckoutSuccessPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(180deg, #fef2f2 0%, #fefce8 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#dc2626' }}>
-          Loading...
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<div>Loading...</div>}>
       <CheckoutSuccessContent />
     </Suspense>
   )
