@@ -89,48 +89,67 @@ export async function POST(request: Request) {
 
     // Create order items one by one (to get order_item_id for modifiers)
     const orderItems = []
+    
+    console.log('Creating order items for Stripe order:', order.id)
+    console.log('Items to process:', JSON.stringify(items, null, 2))
+    
     for (const item of items) {
-      const { data: orderItem, error: itemError } = await supabaseAdmin
-        .from('order_items')
-        .insert({
-          order_id: order.id,
-          menu_item_id: item.menuItem.id,
-          menu_item_size_id: item.selectedSize?.id || null,
-          quantity: item.quantity,
-          unit_price: item.totalPrice / item.quantity,
-          total_price: item.totalPrice,
-          menu_item_name: item.menuItem.name,
-          size_name: item.selectedSize?.name || null,
-          special_instructions: item.specialInstructions || null
-        })
-        .select()
-        .single()
+      console.log('Processing Stripe item:', item)
+      
+      try {
+        const { data: orderItem, error: itemError } = await supabaseAdmin
+          .from('order_items')
+          .insert({
+            order_id: order.id,
+            menu_item_id: item.menuItem.id,
+            menu_item_size_id: item.selectedSize?.id || null,
+            quantity: item.quantity,
+            unit_price: item.totalPrice / item.quantity,
+            total_price: item.totalPrice,
+            menu_item_name: item.menuItem.name,
+            size_name: item.selectedSize?.name || null,
+            special_instructions: item.specialInstructions || null
+          })
+          .select()
+          .single()
 
-      if (itemError) {
-        console.error('Error creating order item:', itemError)
-        continue
-      }
-
-      orderItems.push(orderItem)
-
-      // Create order item modifiers
-      if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-        const modifiers = item.selectedModifiers.map((modifier: any) => ({
-          order_item_id: orderItem.id,
-          modifier_item_id: modifier.id,
-          modifier_name: modifier.name,
-          price: modifier.price
-        }))
-
-        const { error: modifiersError } = await supabaseAdmin
-          .from('order_item_modifiers')
-          .insert(modifiers)
-
-        if (modifiersError) {
-          console.error('Error creating order modifiers:', modifiersError)
+        if (itemError) {
+          console.error('Error creating Stripe order item:', itemError)
+          console.error('Item data that failed:', item)
+          continue
         }
+
+        console.log('Created Stripe order item:', orderItem)
+        orderItems.push(orderItem)
+
+        // Create order item modifiers
+        if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+          console.log('Creating modifiers for Stripe item:', orderItem.id)
+          
+          const modifiers = item.selectedModifiers.map((modifier: any) => ({
+            order_item_id: orderItem.id,
+            modifier_item_id: modifier.id,
+            modifier_name: modifier.name,
+            price: modifier.price
+          }))
+
+          const { error: modifiersError } = await supabaseAdmin
+            .from('order_item_modifiers')
+            .insert(modifiers)
+
+          if (modifiersError) {
+            console.error('Error creating Stripe order modifiers:', modifiersError)
+          } else {
+            console.log('Created modifiers for Stripe order item:', orderItem.id)
+          }
+        }
+      } catch (itemCreationError) {
+        console.error('Exception creating Stripe order item:', itemCreationError)
+        console.error('Failed item data:', item)
       }
     }
+    
+    console.log('Final Stripe order items created:', orderItems.length)
 
     // Create Stripe checkout session
     const lineItems = items.map((item: any) => ({

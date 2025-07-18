@@ -22,22 +22,23 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
-    const body = await request.json()
-    // Update order status or other fields
-    const { data: order, error } = await supabaseAdmin
+    const updateData = await request.json()
+
+    const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .update(body)
+      .update(updateData)
       .eq('id', params.id)
-      .select(`*, order_items(*, order_item_modifiers(*))`)
+      .select()
       .single()
 
-    if (error || !order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    if (orderError) {
+      console.error('Error updating order:', orderError)
+      return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
     }
 
     return NextResponse.json({ order })
   } catch (error) {
-    console.error('Failed to update order:', error)
-    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
+    console.error('Error in PUT /api/admin/orders/[id]:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 

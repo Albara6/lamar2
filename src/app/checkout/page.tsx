@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useCartStore } from '@/store/cartStore'
 import { CheckoutData, CustomerInfo } from '@/types'
 import { Phone, User, Mail, CreditCard, DollarSign, Check, ArrowLeft, Loader2 } from 'lucide-react'
@@ -49,6 +50,16 @@ export default function CheckoutPage() {
     method: 'stripe',
     isProcessing: false
   })
+
+  // Stripe embedded payment states
+  const [stripePromise] = useState(() => {
+    if (typeof window === 'undefined') return null
+    // dynamic import to avoid SSR issues
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { loadStripe } = require('@stripe/stripe-js')
+    return loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+  })
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
   
   const [orderId, setOrderId] = useState<string>('')
   const [loading, setLoading] = useState(false)
@@ -60,12 +71,20 @@ export default function CheckoutPage() {
     setIsHydrated(true)
   }, [])
 
-  // Redirect if cart is empty (but only after hydration)
+  // Redirect to the menu if the cart is empty *when first arriving* on this page.
+  // After the user has progressed past the phone-verification step we no longer
+  // perform this automatic redirect so that clearing the cart as part of the
+  // order-placement flow (cash or Stripe) doesn't bounce the user back to the
+  // menu before we can send them to the success/Stripe page.
   useEffect(() => {
-    if (isHydrated && cart.items.length === 0) {
+    if (
+      isHydrated &&
+      cart.items.length === 0 &&
+      currentStep === 'phone' // only auto-redirect on initial visit
+    ) {
       window.location.href = '/menu'
     }
-  }, [cart.items, isHydrated])
+  }, [cart.items, isHydrated, currentStep])
 
   const formatPhoneNumber = (value: string) => {
     const cleaned = value.replace(/\D/g, '')
@@ -174,6 +193,10 @@ export default function CheckoutPage() {
     setLoading(true)
     setError('')
     
+    console.log('Starting payment process for method:', paymentStep.method)
+    console.log('Cart items:', cart.items)
+    console.log('Cart total:', cart.total)
+    
     try {
       const orderData = {
         customer: {
@@ -187,26 +210,33 @@ export default function CheckoutPage() {
         total: cart.total
       }
 
+      // DEBUG: Log outgoing order data
+      console.log('DEBUG: Order data being sent to backend:', JSON.stringify(orderData, null, 2));
+
       if (paymentStep.method === 'stripe') {
-        // Process Stripe payment
-        const response = await fetch('/api/checkout/stripe-payment', {
+        // NEW: create payment intent and embed form
+        console.log('Creating payment intent...')
+
+        const response = await fetch('/api/checkout/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orderData)
         })
 
         const data = await response.json()
-        
+
         if (!response.ok) {
-          throw new Error(data.error || 'Payment failed')
+          throw new Error(data.error || 'Payment initiation failed')
         }
 
-        // Redirect to Stripe checkout
-        if (data.checkoutUrl) {
-          window.location.href = data.checkoutUrl
-          return
-        }
+        setClientSecret(data.clientSecret)
+        setOrderId(data.orderId)
+
+        // Do NOT clear cart yet; wait until payment succeeds
+        return // show embedded form
       } else {
+        console.log('Processing cash payment...')
+        
         // Process cash payment (create order directly)
         const response = await fetch('/api/checkout/cash-payment', {
           method: 'POST',
@@ -215,19 +245,32 @@ export default function CheckoutPage() {
         })
 
         const data = await response.json()
+        console.log('Cash payment response:', data)
         
         if (!response.ok) {
+          console.error('Cash payment failed:', data)
           throw new Error(data.error || 'Order creation failed')
         }
 
-        setOrderId(data.orderId)
+        if (!data.success || !data.orderId) {
+          console.error('Cash payment response missing required fields:', data)
+          throw new Error('Invalid response from server')
+        }
+
+        // Store order ID and clear cart
+        console.log('Cash payment successful, order ID:', data.orderId)
         cart.clearCart()
-        // Redirect to success page with orderId
+
+        // Redirect to success page
         window.location.href = `/checkout/success?order_id=${data.orderId}`
         return
       }
     } catch (err: any) {
-      setError(err.message)
+      console.error('Payment processing error:', err)
+      setError(err.message || 'An unexpected error occurred')
+      
+      // If there was an error, don't clear the cart
+      console.log('Payment failed, keeping cart items')
     } finally {
       setLoading(false)
     }
@@ -235,6 +278,75 @@ export default function CheckoutPage() {
 
   if (cart.items.length === 0) {
     return null // Will redirect via useEffect
+  }
+
+  // --- Stripe Payment Element confirmation handler ---
+  const EmbeddedPaymentForm = () => {
+    const stripe = useStripe()
+    const elements = useElements()
+
+    const [submitting, setSubmitting] = useState(false)
+    const [message, setMessage] = useState('')
+
+    const handleSubmit = async () => {
+      if (!stripe || !elements) return
+      setSubmitting(true)
+      setMessage('')
+
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/success?order_id=${orderId}`
+        },
+        redirect: 'if_required'
+      })
+
+      if (error) {
+        setMessage(error.message || 'Payment failed')
+        setSubmitting(false)
+        return
+      }
+
+      if (paymentIntent && paymentIntent.status === 'succeeded') {
+        // Mark order paid and navigate to success page
+        await fetch('/api/checkout/verify-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            paymentIntentId: paymentIntent.id,
+            orderId
+          })
+        })
+
+        cart.clearCart()
+        window.location.href = `/checkout/success?order_id=${orderId}`
+      }
+    }
+
+    return (
+      <div>
+        <PaymentElement />
+        {message && <p style={{ color: '#dc2626', marginTop: '1rem' }}>{message}</p>}
+        <button
+          onClick={handleSubmit}
+          disabled={!stripe || submitting}
+          style={{
+            width: '100%',
+            backgroundColor: submitting ? '#9ca3af' : '#dc2626',
+            color: 'white',
+            padding: '0.875rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            fontSize: '1rem',
+            fontWeight: 'bold',
+            cursor: submitting ? 'not-allowed' : 'pointer',
+            marginTop: '1.5rem'
+          }}
+        >
+          {submitting ? 'Processing...' : 'Pay Now'}
+        </button>
+      </div>
+    )
   }
 
   return (
@@ -402,6 +514,47 @@ export default function CheckoutPage() {
               <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
                 We'll send you a verification code to confirm your order and save your preferences for next time.
               </p>
+
+              {/* DEBUG SKIP BUTTON - REMOVE BEFORE PRODUCTION */}
+              <div style={{
+                backgroundColor: '#fef3c7',
+                border: '2px solid #f59e0b',
+                borderRadius: '0.5rem',
+                padding: '1rem',
+                marginBottom: '1.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>🚧</span>
+                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>DEBUG MODE</span>
+                </div>
+                <p style={{ fontSize: '0.875rem', color: '#92400e', marginBottom: '1rem' }}>
+                  Skip phone verification for testing purposes
+                </p>
+                <button
+                  onClick={() => {
+                    setPhoneStep(prev => ({ 
+                      ...prev, 
+                      phoneNumber: '(555) 123-4567',
+                      verificationCode: '123456',
+                      isCodeSent: true,
+                      isVerified: true 
+                    }))
+                    setCurrentStep('customer')
+                  }}
+                  style={{
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    fontSize: '0.875rem',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  🚀 Skip Verification (DEBUG)
+                </button>
+              </div>
 
               {!phoneStep.isCodeSent ? (
                 <div>
@@ -623,58 +776,119 @@ export default function CheckoutPage() {
                 Payment Method
               </h2>
 
+              {clientSecret && stripePromise ? (
+                <div>
+                  <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>
+                    Enter Payment Details
+                  </h3>
+                  <Elements stripe={stripePromise} options={{ clientSecret }}>
+                    <EmbeddedPaymentForm />
+                  </Elements>
+                </div>
+              ) : (
+              <>
               {/* Order Summary */}
               <div style={{
                 backgroundColor: '#f9fafb',
                 padding: '1.5rem',
                 borderRadius: '0.5rem',
-                marginBottom: '2rem'
+                marginBottom: '2rem',
+                border: '1px solid #e5e7eb'
               }}>
-                <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>Order Summary</h3>
-                {cart.items.map((item, index) => (
-                  <div key={index} style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    marginBottom: '0.5rem',
-                    fontSize: '0.875rem'
-                  }}>
-                    <span>
-                      {item.quantity}x {item.menuItem.name}
-                      {item.selectedSize && ` (${item.selectedSize.name})`}
-                    </span>
-                    <span>${item.totalPrice.toFixed(2)}</span>
-                  </div>
-                ))}
+                <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>🛒</span>
+                  Order Summary ({cart.items.length} item{cart.items.length !== 1 ? 's' : ''})
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+                  {cart.items.map((item, index) => (
+                    <div key={index} style={{ 
+                      backgroundColor: 'white',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      display: 'flex',
+                      gap: '1rem'
+                    }}>
+                      <div style={{ 
+                        width: '60px',
+                        height: '60px',
+                        backgroundColor: item.menuItem.category === 'burgers' ? '#f87171' :
+                                       item.menuItem.category === 'chicken' ? '#fbbf24' : '#34d399',
+                        borderRadius: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.5rem',
+                        flexShrink: 0
+                      }}>
+                        {item.menuItem.category === 'burgers' ? '🍔' :
+                         item.menuItem.category === 'chicken' ? '🍗' : '🥪'}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 'bold', color: '#374151', marginBottom: '0.25rem' }}>
+                          {item.menuItem.name}
+                        </div>
+                        {item.selectedSize && (
+                          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                            Size: {item.selectedSize.name}
+                            {item.selectedSize.price_modifier > 0 && ` (+$${item.selectedSize.price_modifier.toFixed(2)})`}
+                          </div>
+                        )}
+                        {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                          <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                            Add-ons: {item.selectedModifiers.map(mod => `${mod.name}${mod.price > 0 ? ` (+$${mod.price.toFixed(2)})` : ''}`).join(', ')}
+                          </div>
+                        )}
+                        {item.specialInstructions && (
+                          <div style={{ fontSize: '0.875rem', color: '#6b7280', fontStyle: 'italic', marginBottom: '0.25rem' }}>
+                            Note: {item.specialInstructions}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                          <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                            Quantity: {item.quantity}
+                          </span>
+                          <span style={{ fontWeight: 'bold', color: '#dc2626' }}>
+                            ${item.totalPrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div style={{
-                  borderTop: '1px solid #e5e7eb',
-                  paddingTop: '0.5rem',
-                  marginTop: '0.5rem',
+                  borderTop: '2px solid #e5e7eb',
+                  paddingTop: '1rem',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  fontWeight: 'bold'
+                  alignItems: 'center'
                 }}>
-                  <span>Total:</span>
-                  <span>${cart.total.toFixed(2)}</span>
+                  <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#374151' }}>Total:</span>
+                  <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#dc2626' }}>${cart.total.toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Payment Options */}
               <div style={{ marginBottom: '2rem' }}>
+                <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>
+                  Choose Payment Method
+                </h3>
                 <div style={{
                   border: `2px solid ${paymentStep.method === 'stripe' ? '#dc2626' : '#e5e7eb'}`,
                   borderRadius: '0.5rem',
                   padding: '1rem',
                   marginBottom: '1rem',
                   cursor: 'pointer',
-                  backgroundColor: paymentStep.method === 'stripe' ? '#fef2f2' : 'white'
+                  backgroundColor: paymentStep.method === 'stripe' ? '#fef2f2' : 'white',
+                  transition: 'all 0.2s'
                 }}
                 onClick={() => setPaymentStep(prev => ({ ...prev, method: 'stripe' }))}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <CreditCard size={20} color={paymentStep.method === 'stripe' ? '#dc2626' : '#6b7280'} />
+                    <CreditCard size={24} color={paymentStep.method === 'stripe' ? '#dc2626' : '#6b7280'} />
                     <div>
                       <div style={{ fontWeight: 'bold', color: '#374151' }}>Pay with Card</div>
-                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Secure payment via Stripe</div>
+                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Secure payment via Stripe • Process instantly</div>
                     </div>
                   </div>
                 </div>
@@ -684,15 +898,16 @@ export default function CheckoutPage() {
                   borderRadius: '0.5rem',
                   padding: '1rem',
                   cursor: 'pointer',
-                  backgroundColor: paymentStep.method === 'cash' ? '#fef2f2' : 'white'
+                  backgroundColor: paymentStep.method === 'cash' ? '#fef2f2' : 'white',
+                  transition: 'all 0.2s'
                 }}
                 onClick={() => setPaymentStep(prev => ({ ...prev, method: 'cash' }))}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <DollarSign size={20} color={paymentStep.method === 'cash' ? '#dc2626' : '#6b7280'} />
+                    <DollarSign size={24} color={paymentStep.method === 'cash' ? '#dc2626' : '#6b7280'} />
                     <div>
                       <div style={{ fontWeight: 'bold', color: '#374151' }}>Pay with Cash</div>
-                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Pay when you pick up your order</div>
+                      <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>Pay when you pick up your order • Have exact change ready</div>
                     </div>
                   </div>
                 </div>
@@ -718,13 +933,10 @@ export default function CheckoutPage() {
                 }}
               >
                 {loading && <Loader2 size={16} className="animate-spin" />}
-                {loading 
-                  ? 'Processing...' 
-                  : paymentStep.method === 'stripe' 
-                    ? `Pay $${cart.total.toFixed(2)}` 
-                    : 'Place Order'
-                }
+                {paymentStep.method === 'stripe' ? (loading ? 'Loading...' : 'Pay Online') : (loading ? 'Placing Order...' : 'Place Order')}
               </button>
+              </>
+              )}
             </div>
           )}
 
@@ -732,30 +944,60 @@ export default function CheckoutPage() {
           {currentStep === 'confirmation' && (
             <div style={{ textAlign: 'center' }}>
               <div style={{
-                width: '80px',
-                height: '80px',
+                width: '100px',
+                height: '100px',
                 backgroundColor: '#10b981',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 2rem'
+                margin: '0 auto 2rem',
+                animation: 'pulse 2s infinite'
               }}>
-                <Check size={40} color="white" />
+                <Check size={50} color="white" />
               </div>
 
               <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>
-                Order Confirmed!
+                Order Created Successfully!
               </h2>
               
-              <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
+              <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '1.125rem' }}>
                 Order #{orderId.slice(-8)}
               </p>
               
-              <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-                We've sent a confirmation email to {customerStep.email}.
-                {paymentStep.method === 'cash' && ' Please have your payment ready when you pick up your order.'}
-              </p>
+              <div style={{
+                backgroundColor: '#f0f9ff',
+                border: '1px solid #0ea5e9',
+                borderRadius: '0.5rem',
+                padding: '1.5rem',
+                marginBottom: '2rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                  <span style={{ fontSize: '1.5rem' }}>🍗</span>
+                  <span style={{ fontWeight: 'bold', color: '#0369a1' }}>Crazy Chicken</span>
+                </div>
+                <p style={{ color: '#0369a1', fontSize: '0.875rem', margin: 0 }}>
+                  Your order is being prepared! You'll be redirected to the confirmation page in a moment.
+                </p>
+              </div>
+              
+              <div style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '0.5rem',
+                padding: '1.5rem',
+                marginBottom: '2rem'
+              }}>
+                <h3 style={{ color: '#dc2626', margin: '0 0 1rem 0', fontWeight: 'bold' }}>
+                  {paymentStep.method === 'cash' ? '💵 Cash Payment' : '💳 Card Payment'}
+                </h3>
+                <p style={{ color: '#6b7280', margin: 0, fontSize: '0.875rem' }}>
+                  {paymentStep.method === 'cash' 
+                    ? 'Please have your cash ready when you pick up your order. Total: $' + cart.total.toFixed(2)
+                    : 'Your payment has been processed securely. Total: $' + cart.total.toFixed(2)
+                  }
+                </p>
+              </div>
 
               <div style={{
                 backgroundColor: '#f9fafb',
@@ -764,37 +1006,62 @@ export default function CheckoutPage() {
                 marginBottom: '2rem'
               }}>
                 <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>What's Next?</h3>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-                  • Your order is being prepared
-                </p>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.5rem' }}>
-                  • You'll receive updates via email
-                </p>
-                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                  • Pick up time: 15-20 minutes
-                </p>
+                <div style={{ textAlign: 'left', color: '#6b7280', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                  <p style={{ margin: '0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#10b981' }}>✓</span> Order confirmed and sent to kitchen
+                  </p>
+                  <p style={{ margin: '0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#10b981' }}>✓</span> Confirmation email sent to {customerStep.email}
+                  </p>
+                  <p style={{ margin: '0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#dc2626' }}>⏱</span> Estimated pickup time: 15-20 minutes
+                  </p>
+                  <p style={{ margin: '0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ color: '#dc2626' }}>📍</span> Pickup location: 123 Food Street
+                  </p>
+                </div>
               </div>
 
-              <button
-                onClick={() => window.location.href = '/menu'}
-                style={{
+              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                <p>Redirecting to confirmation page...</p>
+                <div style={{
                   width: '100%',
-                  backgroundColor: '#dc2626',
-                  color: 'white',
-                  padding: '0.875rem',
-                  borderRadius: '0.5rem',
-                  border: 'none',
-                  fontSize: '1rem',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >
-                Continue Shopping
-              </button>
+                  height: '4px',
+                  backgroundColor: '#e5e7eb',
+                  borderRadius: '2px',
+                  overflow: 'hidden',
+                  marginTop: '1rem'
+                }}>
+                  <div style={{
+                    width: '0%',
+                    height: '100%',
+                    backgroundColor: '#dc2626',
+                    borderRadius: '2px',
+                    animation: 'progress 1.5s ease-in-out forwards'
+                  }} />
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        
+        @keyframes progress {
+          0% { width: 0%; }
+          100% { width: 100%; }
+        }
+      `}</style>
     </div>
   )
 } 

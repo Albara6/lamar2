@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { ShoppingCart, Plus, Minus, ArrowLeft, X } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
-import { MenuItem, MenuItemSize, ModifierGroup, ModifierItem, MenuItemModifierGroup, CartItem } from '@/types'
+import { MenuItem, MenuItemSize, ModifierGroup, ModifierItem, MenuItemModifierGroup, CartItem, CartMenuItem, CartMenuItemSize, CartModifierItem } from '@/types'
 import { useRouter } from 'next/navigation'
 
 interface MenuData {
@@ -85,10 +85,33 @@ export default function MenuPage() {
     const modifierPrice = selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)
     const totalPrice = (basePrice + modifierPrice) * quantity
 
-    const cartItem = {
-      menuItem: selectedItem,
-      selectedSize: selectedSize || undefined,
-      selectedModifiers: [...selectedModifiers],
+    // Create a clean version of the menu item with only the necessary data
+    const cleanMenuItem: CartMenuItem = {
+      id: selectedItem.id,
+      name: selectedItem.name,
+      description: selectedItem.description,
+      base_price: selectedItem.base_price,
+      category: selectedItem.category
+    }
+
+    // Create a clean version of the size if selected
+    const cleanSize: CartMenuItemSize | undefined = selectedSize ? {
+      id: selectedSize.id,
+      name: selectedSize.name,
+      price_modifier: selectedSize.price_modifier
+    } : undefined
+
+    // Create clean versions of the modifiers
+    const cleanModifiers: CartModifierItem[] = selectedModifiers.map(mod => ({
+      id: mod.id,
+      name: mod.name,
+      price: mod.price
+    }))
+
+    const cartItem: CartItem = {
+      menuItem: cleanMenuItem,
+      selectedSize: cleanSize,
+      selectedModifiers: cleanModifiers,
       quantity,
       totalPrice,
       specialInstructions: specialInstructions.trim() || undefined

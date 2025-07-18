@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 // Mock data for now - in production this would connect to your database
 let menuItems = [
   {
-    id: '1',
+    id: '550e8400-e29b-41d4-a716-446655440001',
     name: 'Crazy Classic Burger',
     description: 'Our signature beef patty with lettuce, tomato, onion, pickles, and our crazy sauce',
     category: 'burgers',
@@ -12,7 +12,7 @@ let menuItems = [
     sort_order: 1
   },
   {
-    id: '2', 
+    id: '550e8400-e29b-41d4-a716-446655440002', 
     name: 'Buffalo Wings',
     description: 'Crispy chicken wings tossed in our buffalo sauce',
     category: 'chicken',
@@ -21,7 +21,7 @@ let menuItems = [
     sort_order: 2
   },
   {
-    id: '3',
+    id: '550e8400-e29b-41d4-a716-446655440003',
     name: 'Classic Philly Cheesesteak', 
     description: 'Sliced ribeye with sautéed onions and melted provolone cheese',
     category: 'phillys',

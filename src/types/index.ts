@@ -113,10 +113,30 @@ export interface BusinessSettings {
 }
 
 // Frontend Types
+export interface CartMenuItem {
+  id: string
+  name: string
+  description?: string
+  base_price: number
+  category: string
+}
+
+export interface CartMenuItemSize {
+  id: string
+  name: string
+  price_modifier: number
+}
+
+export interface CartModifierItem {
+  id: string
+  name: string
+  price: number
+}
+
 export interface CartItem {
-  menuItem: MenuItem
-  selectedSize?: MenuItemSize
-  selectedModifiers: ModifierItem[]
+  menuItem: CartMenuItem
+  selectedSize?: CartMenuItemSize
+  selectedModifiers: CartModifierItem[]
   quantity: number
   specialInstructions?: string
   totalPrice: number

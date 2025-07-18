@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Initialize Resend with fallback for missing API key
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -12,7 +13,25 @@ const formatCurrency = (amount: number) => {
 
 export async function POST(request: Request) {
   try {
-    const { order, customer } = await request.json()
+    // Check if Resend is configured
+    if (!resend) {
+      console.warn('RESEND_API_KEY not configured, skipping email confirmation')
+      return NextResponse.json({ 
+        success: false, 
+        message: 'Email service not configured' 
+      }, { status: 200 }) // Don't fail the order if email fails
+    }
+
+    const body = await request.json()
+    const { order, customer } = body
+
+    if (!order || !customer || !customer.email) {
+      console.error('Invalid request data:', body)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Missing required data' 
+      }, { status: 400 })
+    }
 
     const itemsList = order.items.map((item: any) => `
       <tr>
@@ -101,27 +120,38 @@ export async function POST(request: Request) {
       </html>
     `
 
-    const { data, error } = await resend.emails.send({
-      from: 'orders@crazychicken.us',
-      to: customer.email,
-      subject: `Crazy Chicken Order Confirmation #${order.id}`,
-      html: emailHtml
-    })
+    try {
+      const { data, error } = await resend.emails.send({
+        from: 'orders@crazychicken.us',
+        to: customer.email,
+        subject: `Crazy Chicken Order Confirmation #${order.id}`,
+        html: emailHtml
+      })
 
-    if (error) {
-      console.error('Failed to send email:', error)
-      return NextResponse.json(
-        { error: 'Failed to send confirmation email' },
-        { status: 500 }
-      )
+      if (error) {
+        console.error('Failed to send email:', error)
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Failed to send confirmation email',
+          details: error 
+        }, { status: 200 }) // Don't fail the order if email fails
+      }
+
+      return NextResponse.json({ success: true })
+    } catch (emailError) {
+      console.error('Email service error:', emailError)
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Email service error',
+        details: emailError 
+      }, { status: 200 }) // Don't fail the order if email fails
     }
-
-    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Send confirmation error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ 
+      success: false, 
+      error: 'Internal server error',
+      details: error 
+    }, { status: 200 }) // Don't fail the order if email fails
   }
 } 
