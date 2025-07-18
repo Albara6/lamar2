@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 
+// Force dynamic rendering to prevent caching for real-time order updates
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
     // Update order status to ready first, then completed
@@ -19,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
     // Send SMS notification via Twilio
     if (order.customer_phone) {
       try {
-        await fetch('/api/notifications/send-sms', {
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-sms`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -39,7 +43,14 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .update({ order_status: 'completed' })
       .eq('id', params.id)
 
-    return NextResponse.json({ order })
+    const response = NextResponse.json({ order })
+    
+    // Add aggressive cache-busting headers
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    
+    return response
   } catch (error) {
     console.error('Error in POST /api/admin/orders/[id]/ready:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Edit, Trash2, Save, X, Eye, EyeOff, Upload, Printer, Settings, ShoppingBag, Building, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
 
@@ -7,11 +8,11 @@ interface MenuItem {
   id: string
   name: string
   description: string
-  category: string
+  category_id: string
   image_url?: string
-  base_price: number
+  price: number
   is_available: boolean
-  sort_order: number
+  display_order: number
   menu_item_sizes?: MenuItemSize[]
   menu_item_modifier_groups?: MenuItemModifierGroup[]
 }
@@ -68,14 +69,14 @@ interface Order {
   customer_name: string
   customer_phone: string
   customer_email: string
-  total_amount: number
+  total: number
   payment_method: string
   payment_status: string
-  order_status: string
+  status: string
   created_at: string
   order_items?: OrderItem[]
+  notes?: string
   rejection_reason?: string
-  special_instructions?: string
 }
 
 interface OrderItem {
@@ -93,6 +94,12 @@ interface OrderItemModifier {
   id: string
   modifier_name: string
   price: number
+}
+
+interface Category {
+  id: string
+  name: string
+  display_order: number
 }
 
 export default function AdminPage() {
@@ -126,10 +133,11 @@ export default function AdminPage() {
   const [menuItemForm, setMenuItemForm] = useState({
     name: '',
     description: '',
-    category: 'burgers',
-    base_price: 0,
+    category_id: '',
+    price: 0,
     is_available: true,
-    sort_order: 0
+    display_order: 0,
+    image_url: ''
   })
   
   const [modifierGroupForm, setModifierGroupForm] = useState({
@@ -141,6 +149,8 @@ export default function AdminPage() {
   })
 
   const [loading, setLoading] = useState(false)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null)
   
   // Audio notification system
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -183,13 +193,13 @@ export default function AdminPage() {
     }
   }
 
-  // Poll orders every 5 seconds (more stable)
+  // Poll orders every 3 seconds for faster real-time updates
   useEffect(() => {
     if (!authenticated) return
     
     const interval = setInterval(() => {
       fetchOrders()
-    }, 5000)
+    }, 3000)
     
     return () => clearInterval(interval)
   }, [authenticated])
@@ -197,7 +207,7 @@ export default function AdminPage() {
   // Sound alert for new pending orders (stable version)
   useEffect(() => {
     const newOrders = orders.filter(o => 
-      o.order_status === 'pending' && 
+      o.status === 'pending' && 
       (o.payment_status === 'paid' || o.payment_method === 'cash')
     )
     
@@ -244,7 +254,14 @@ export default function AdminPage() {
 
   const fetchMenuItems = async () => {
     try {
-      const response = await fetch('/api/admin/menu-items')
+      // Add timestamp to prevent any caching
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/admin/menu-items?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       const data = await response.json()
       setMenuItems(data.menuItems || [])
     } catch (error) {
@@ -274,17 +291,24 @@ export default function AdminPage() {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('/api/admin/orders')
+      // Add timestamp to prevent any caching
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/admin/orders?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       const data = await response.json()
       const allOrders = data.orders || []
       
-      // Separate active orders from history
+      // Separate active orders from history using status
       const activeOrders = allOrders.filter((order: Order) => 
-        order.order_status === 'pending' || order.order_status === 'accepted'
+        order.status === 'pending' || order.status === 'accepted'
       )
       const historyOrders = allOrders.filter((order: Order) => 
-        order.order_status === 'ready' || order.order_status === 'completed' || order.order_status === 'rejected'
-      ).slice(0, 100) // Keep last 100 orders
+        order.status === 'ready' || order.status === 'completed' || order.status === 'rejected'
+      ).slice(0, 100)
       
       setOrders(activeOrders)
       setOrderHistory(historyOrders)
@@ -298,8 +322,8 @@ export default function AdminPage() {
     try {
       // For cash orders, also mark payment as paid when accepted
       const updateData = order.payment_method === 'cash' 
-        ? { order_status: 'accepted', payment_status: 'paid' }
-        : { order_status: 'accepted' }
+        ? { status: 'accepted', payment_status: 'paid' }
+        : { status: 'accepted' }
 
       const response = await fetch(`/api/admin/orders/${order.id}`, {
         method: 'PUT',
@@ -348,18 +372,18 @@ export default function AdminPage() {
             <p><strong>Customer:</strong> ${order.customer_name}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
             <p><strong>Payment:</strong> ${order.payment_method.toUpperCase()}</p>
-            ${order.special_instructions ? `<p><strong>Notes:</strong> ${order.special_instructions}</p>` : ''}
+            ${order.notes ? `<p><strong>Notes:</strong> ${order.notes}</p>` : ''}
           </div>
           <div class="items">
             ${order.order_items?.map(item => `
               <div class="item">
                 <span>${item.quantity}x ${item.menu_item_name}${item.size_name ? ` (${item.size_name})` : ''}</span>
-                <span>$${item.total_price.toFixed(2)}</span>
+                <span>$${(item.total_price ?? 0).toFixed(2)}</span>
               </div>
               ${item.order_item_modifiers?.map(mod => `
                 <div style="margin-left: 20px; color: #666;">
                   <span>+ ${mod.modifier_name}</span>
-                  <span>$${mod.price.toFixed(2)}</span>
+                  <span>$${(mod.price ?? 0).toFixed(2)}</span>
                 </div>
               `).join('') || ''}
               ${item.special_instructions ? `<div style="margin-left: 20px; font-style: italic; color: #666;">Note: ${item.special_instructions}</div>` : ''}
@@ -368,7 +392,7 @@ export default function AdminPage() {
           <div class="total">
             <div class="item">
               <span>TOTAL:</span>
-              <span>$${order.total_amount.toFixed(2)}</span>
+              <span>$${(order.total ?? 0).toFixed(2)}</span>
             </div>
           </div>
         </body>
@@ -533,20 +557,22 @@ export default function AdminPage() {
       setMenuItemForm({
         name: item.name,
         description: item.description,
-        category: item.category,
-        base_price: item.base_price,
+        category_id: item.category_id,
+        price: item.price,
         is_available: item.is_available,
-        sort_order: item.sort_order
+        display_order: item.display_order,
+        image_url: item.image_url || ''
       })
     } else {
       setEditingMenuItem(null)
       setMenuItemForm({
         name: '',
         description: '',
-        category: 'burgers',
-        base_price: 0,
+        category_id: '',
+        price: 0,
         is_available: true,
-        sort_order: 0
+        display_order: 0,
+        image_url: ''
       })
     }
     setShowMenuItemModal(true)
@@ -584,6 +610,260 @@ export default function AdminPage() {
     setShowModifierGroupModal(false)
     setEditingModifierGroup(null)
   }
+
+  // Category management functions
+  const saveCategory = async () => {
+    // For now, just update local state since categories are simple
+    if (editingCategory) {
+      setCategories(categories.map(cat => 
+        cat.id === editingCategory.id 
+          ? { ...cat, name: categoryForm.name, display_order: categoryForm.display_order }
+          : cat
+      ))
+    } else {
+      const newCategory = {
+        id: categoryForm.name.toLowerCase().replace(/\s+/g, '_'),
+        name: categoryForm.name,
+        display_order: categoryForm.display_order
+      }
+      setCategories([...categories, newCategory])
+    }
+    closeCategoryModal()
+  }
+
+  const deleteCategory = (id: string) => {
+    if (confirm('Are you sure you want to delete this category?')) {
+      setCategories(categories.filter(cat => cat.id !== id))
+    }
+  }
+
+  const openCategoryModal = (category?: Category) => {
+    if (category) {
+      setEditingCategory(category)
+      setCategoryForm({
+        name: category.name,
+        display_order: category.display_order
+      })
+    } else {
+      setEditingCategory(null)
+      setCategoryForm({
+        name: '',
+        display_order: categories.length + 1
+      })
+    }
+    setShowCategoryModal(true)
+  }
+
+  const closeCategoryModal = () => {
+    setShowCategoryModal(false)
+    setEditingCategory(null)
+  }
+
+  // Size management functions
+  const saveSize = async () => {
+    console.log('Save size function called')
+    if (!selectedMenuItemForSizes) return
+    alert('Size management will be fully implemented in the next update')
+    closeSizeModal()
+  }
+
+  const deleteSize = async (sizeId: string) => {
+    console.log('Delete size function called')
+    alert('Size management will be fully implemented in the next update')
+  }
+
+  const openSizeModal = (menuItem: MenuItem, size?: MenuItemSize) => {
+    setSelectedMenuItemForSizes(menuItem)
+    if (size) {
+      setEditingSize(size)
+      setSizeForm({
+        name: size.name,
+        price_modifier: size.price_modifier,
+        is_default: size.is_default,
+        sort_order: size.sort_order
+      })
+    } else {
+      setEditingSize(null)
+      setSizeForm({
+        name: '',
+        price_modifier: 0,
+        is_default: false,
+        sort_order: (menuItem.menu_item_sizes?.length || 0) + 1
+      })
+    }
+    setShowSizeModal(true)
+  }
+
+  const closeSizeModal = () => {
+    setShowSizeModal(false)
+    setEditingSize(null)
+    setSelectedMenuItemForSizes(null)
+  }
+
+  // Modifier item management functions  
+  const saveModifierItem = async () => {
+    console.log('Save modifier item function called')
+    if (!selectedModifierGroupForItems) return
+    alert('Modifier item management will be fully implemented in the next update')
+    closeModifierItemModal()
+  }
+
+  const deleteModifierItem = async (itemId: string) => {
+    console.log('Delete modifier item function called')
+    alert('Modifier item management will be fully implemented in the next update')
+  }
+
+  const openModifierItemModal = (group: ModifierGroup, item?: ModifierItem) => {
+    setSelectedModifierGroupForItems(group)
+    if (item) {
+      setEditingModifierItem(item)
+      setModifierItemForm({
+        name: item.name,
+        price: item.price,
+        is_default: item.is_default,
+        sort_order: item.sort_order
+      })
+    } else {
+      setEditingModifierItem(null)
+      setModifierItemForm({
+        name: '',
+        price: 0,
+        is_default: false,
+        sort_order: (group.modifier_items?.length || 0) + 1
+      })
+    }
+    setShowModifierItemModal(true)
+  }
+
+  const closeModifierItemModal = () => {
+    setShowModifierItemModal(false)
+    setEditingModifierItem(null)
+    setSelectedModifierGroupForItems(null)
+  }
+
+  const saveBusinessSettings = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/business-settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(businessSettings)
+      })
+
+      if (response.ok) {
+        await fetchBusinessSettings()
+        alert('Business settings updated successfully!')
+      } else {
+        const errorData = await response.json()
+        alert(`Failed to update business settings: ${errorData.message || response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Failed to save business settings:', error)
+      alert('Failed to save business settings')
+    }
+    setLoading(false)
+  }
+
+  const printTestReceipt = () => {
+    const win = window.open('', '_blank', 'width=400,height=600')
+    if (!win) return
+    
+    const testReceiptHTML = `
+      <html>
+        <head>
+          <title>Test Receipt - Crazy Chicken</title>
+          <style>
+            body { font-family: 'Courier New', monospace; font-size: 12px; margin: 20px; }
+            .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
+            .test-info { margin: 20px 0; text-align: center; }
+            .item { margin: 5px 0; display: flex; justify-content: space-between; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>🍗 CRAZY CHICKEN</h2>
+            <p>TEST RECEIPT</p>
+            <p>${new Date().toLocaleString()}</p>
+          </div>
+          <div class="test-info">
+            <p><strong>PRINTER TEST</strong></p>
+            <p>If you can read this clearly,</p>
+            <p>your printer is working correctly!</p>
+          </div>
+          <div class="items">
+            <div class="item">
+              <span>1x Test Item</span>
+              <span>$0.00</span>
+            </div>
+          </div>
+          <div style="border-top: 1px solid #000; padding-top: 10px; font-weight: bold; text-align: center;">
+            <p>TOTAL: $0.00</p>
+            <p>Thank you for using Crazy Chicken!</p>
+          </div>
+        </body>
+      </html>
+    `
+    
+    win.document.write(testReceiptHTML)
+    win.document.close()
+    win.focus()
+    win.print()
+    win.close()
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const file = files[0]
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setMenuItemForm({ ...menuItemForm, image_url: reader.result as string })
+        setSelectedImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  // Add new state variables after existing form states (around line 137)
+  const [categories, setCategories] = useState<Category[]>([
+    { id: 'burgers', name: 'Crazy Burgers', display_order: 1 },
+    { id: 'chicken', name: 'Crispy Chicken', display_order: 2 },
+    { id: 'phillys', name: 'Philly Cheesesteaks', display_order: 3 }
+  ])
+  
+  // Modal states for new features
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [showSizeModal, setShowSizeModal] = useState(false)
+  const [showModifierItemModal, setShowModifierItemModal] = useState(false)
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editingSize, setEditingSize] = useState<MenuItemSize | null>(null)
+  const [editingModifierItem, setEditingModifierItem] = useState<ModifierItem | null>(null)
+  const [selectedMenuItemForSizes, setSelectedMenuItemForSizes] = useState<MenuItem | null>(null)
+  const [selectedModifierGroupForItems, setSelectedModifierGroupForItems] = useState<ModifierGroup | null>(null)
+  
+  // Form states for new features
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    display_order: 0
+  })
+  
+  const [sizeForm, setSizeForm] = useState({
+    name: '',
+    price_modifier: 0,
+    is_default: false,
+    sort_order: 0
+  })
+  
+  const [modifierItemForm, setModifierItemForm] = useState({
+    name: '',
+    price: 0,
+    is_default: false,
+    sort_order: 0
+  })
+  
+  // Enhanced menu item form to include sizes and modifier groups
+  const [menuItemSizes, setMenuItemSizes] = useState<MenuItemSize[]>([])
+  const [selectedModifierGroups, setSelectedModifierGroups] = useState<string[]>([])
 
   if (!authenticated) {
     return (
@@ -811,7 +1091,7 @@ export default function AdminPage() {
                 Active Orders ({orders.length})
               </h2>
                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                 Auto-refresh every 5 seconds
+                 Auto-refresh every 3 seconds
                </div>
             </div>
 
@@ -837,7 +1117,7 @@ export default function AdminPage() {
                       padding: '2rem',
                       borderRadius: '0.75rem',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                             border: order.order_status === 'pending' && 
+                                             border: order.status === 'pending' && 
                                (order.payment_status === 'paid' || order.payment_method === 'cash') ? 
                                '3px solid #dc2626' : '1px solid #e5e7eb'
                     }}
@@ -859,7 +1139,7 @@ export default function AdminPage() {
                           marginBottom: '0.5rem'
                         }}>
                           Order #{order.id.slice(-8)}
-                                                     {order.order_status === 'pending' && 
+                                                     {order.status === 'pending' && 
                             (order.payment_status === 'paid' || order.payment_method === 'cash') && (
                              <span style={{ 
                                marginLeft: '0.5rem',
@@ -896,17 +1176,21 @@ export default function AdminPage() {
                           color: '#dc2626',
                           marginBottom: '0.5rem'
                         }}>
-                          ${order.total_amount.toFixed(2)}
+                          ${(order.total ?? 0).toFixed(2)}
                         </div>
                         <div style={{ 
                           padding: '0.5rem 1rem',
                           borderRadius: '0.5rem',
                           fontSize: '0.875rem',
                           fontWeight: '600',
-                          backgroundColor: order.order_status === 'pending' ? '#fef3c7' : '#d1fae5',
-                          color: order.order_status === 'pending' ? '#92400e' : '#065f46'
+                          backgroundColor: order.status === 'pending' ? '#fef3c7' : 
+                                         order.status === 'accepted' ? '#dbeafe' : '#d1fae5',
+                          color: order.status === 'pending' ? '#92400e' : 
+                               order.status === 'accepted' ? '#1e40af' : '#065f46'
                         }}>
-                          {order.order_status.toUpperCase()}
+                          {order.status === 'pending' ? 'PENDING' :
+                           order.status === 'accepted' ? 'ACCEPTED' :
+                           order.status.toUpperCase()}
                         </div>
                       </div>
                     </div>
@@ -949,7 +1233,7 @@ export default function AdminPage() {
                                   fontWeight: '600',
                                   color: '#dc2626'
                                 }}>
-                                  ${item.total_price.toFixed(2)}
+                                  ${(item.total_price ?? 0).toFixed(2)}
                                 </span>
                               </div>
                               
@@ -964,7 +1248,7 @@ export default function AdminPage() {
                                       fontSize: '0.875rem'
                                     }}>
                                       <span>+ {mod.modifier_name}</span>
-                                      <span>${mod.price.toFixed(2)}</span>
+                                      <span>${(mod.price ?? 0).toFixed(2)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -992,7 +1276,7 @@ export default function AdminPage() {
                     )}
 
                     {/* Order Special Instructions */}
-                    {order.special_instructions && (
+                    {order.notes && (
                       <div style={{ 
                         marginBottom: '1.5rem',
                         padding: '1rem',
@@ -1009,7 +1293,7 @@ export default function AdminPage() {
                           📝 Order Notes:
                         </h4>
                         <p style={{ color: '#991b1b', fontStyle: 'italic' }}>
-                          {order.special_instructions}
+                          {order.notes}
                         </p>
                       </div>
                     )}
@@ -1023,7 +1307,7 @@ export default function AdminPage() {
                        paddingTop: '1rem'
                      }}>
                        {/* Show buttons for pending orders (both online paid and cash orders) */}
-                       {order.order_status === 'pending' && 
+                       {order.status === 'pending' && 
                         (order.payment_status === 'paid' || order.payment_method === 'cash') && (
                          <>
                            {/* BIG GREEN ACCEPT BUTTON */}
@@ -1054,7 +1338,7 @@ export default function AdminPage() {
                              }}
                            >
                              <CheckCircle size={24} />
-                             START PREPARING
+                             ACCEPT ORDER
                            </button>
                            
                            {/* SMALL RED REJECT BUTTON */}
@@ -1080,7 +1364,7 @@ export default function AdminPage() {
                          </>
                        )}
                        
-                       {order.order_status === 'accepted' && (
+                       {order.status === 'accepted' && (
                          <button 
                            onClick={() => handleReady(order)}
                            style={{
@@ -1146,8 +1430,8 @@ export default function AdminPage() {
                       borderRadius: '0.5rem',
                       boxShadow: '0 2px 4px -1px rgba(0, 0, 0, 0.1)',
                       border: `1px solid ${
-                        order.order_status === 'completed' ? '#d1fae5' :
-                        order.order_status === 'rejected' ? '#fee2e2' : '#e5e7eb'
+                        order.status === 'delivered' ? '#d1fae5' :
+                        order.status === 'rejected' ? '#fee2e2' : '#e5e7eb'
                       }`
                     }}
                   >
@@ -1190,7 +1474,7 @@ export default function AdminPage() {
                             color: '#374151',
                             marginBottom: '0.5rem'
                           }}>
-                            ${order.total_amount.toFixed(2)}
+                            ${(order.total ?? 0).toFixed(2)}
                           </div>
                           <div style={{ 
                             padding: '0.25rem 0.75rem',
@@ -1198,13 +1482,13 @@ export default function AdminPage() {
                             fontSize: '0.75rem',
                             fontWeight: '600',
                             backgroundColor: 
-                              order.order_status === 'completed' ? '#d1fae5' :
-                              order.order_status === 'rejected' ? '#fee2e2' : '#f3f4f6',
+                              order.status === 'delivered' ? '#d1fae5' :
+                              order.status === 'rejected' ? '#fee2e2' : '#f3f4f6',
                             color: 
-                              order.order_status === 'completed' ? '#065f46' :
-                              order.order_status === 'rejected' ? '#991b1b' : '#374151'
+                              order.status === 'delivered' ? '#065f46' :
+                              order.status === 'rejected' ? '#991b1b' : '#374151'
                           }}>
-                            {order.order_status.toUpperCase()}
+                            {order.status.toUpperCase()}
                           </div>
                         </div>
                         <button
@@ -1350,7 +1634,7 @@ export default function AdminPage() {
                       fontWeight: 'bold', 
                       color: '#dc2626' 
                     }}>
-                      ${item.base_price.toFixed(2)}
+                      ${(item.price ?? 0).toFixed(2)}
                     </span>
                     <span style={{ 
                       backgroundColor: '#f3f4f6',
@@ -1361,7 +1645,7 @@ export default function AdminPage() {
                       fontWeight: '500',
                       textTransform: 'capitalize'
                     }}>
-                      {item.category}
+                      {item.category_id}
                     </span>
                   </div>
                 </div>
@@ -1492,7 +1776,7 @@ export default function AdminPage() {
                             color: '#6b7280'
                           }}>
                             <span>{item.name}</span>
-                            <span>${item.price.toFixed(2)}</span>
+                            <span>${(item.price ?? 0).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
@@ -1515,16 +1799,258 @@ export default function AdminPage() {
             }}>
               Business Settings
             </h2>
-            <div style={{
-              backgroundColor: 'white',
-              padding: '2rem',
-              borderRadius: '0.5rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-            }}>
-              <p style={{ color: '#6b7280' }}>
-                Business settings management will be implemented here.
-              </p>
-            </div>
+            {businessSettings ? (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '2rem',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {/* Restaurant Name */}
+                  <div>
+                    <label style={{ 
+                      display: 'block', 
+                      fontSize: '0.875rem', 
+                      fontWeight: '500', 
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Restaurant Name
+                    </label>
+                    <input
+                      type="text"
+                      value={businessSettings.name}
+                      onChange={(e) => setBusinessSettings({ ...businessSettings, name: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        fontSize: '1rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label style={{ 
+                      display: 'block', 
+                      fontSize: '0.875rem', 
+                      fontWeight: '500', 
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={businessSettings.phone}
+                      onChange={(e) => setBusinessSettings({ ...businessSettings, phone: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        fontSize: '1rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label style={{ 
+                      display: 'block', 
+                      fontSize: '0.875rem', 
+                      fontWeight: '500', 
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={businessSettings.email}
+                      onChange={(e) => setBusinessSettings({ ...businessSettings, email: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        fontSize: '1rem'
+                      }}
+                    />
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label style={{ 
+                      display: 'block', 
+                      fontSize: '0.875rem', 
+                      fontWeight: '500', 
+                      color: '#374151',
+                      marginBottom: '0.5rem'
+                    }}>
+                      Address
+                    </label>
+                    <textarea
+                      value={businessSettings.address}
+                      onChange={(e) => setBusinessSettings({ ...businessSettings, address: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        fontSize: '1rem',
+                        minHeight: '4rem',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+
+                  {/* Banner Settings */}
+                  <div style={{
+                    padding: '1.5rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <h3 style={{ 
+                      fontSize: '1.125rem', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      marginBottom: '1rem'
+                    }}>
+                      Banner Settings
+                    </h3>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                      <input
+                        type="checkbox"
+                        id="banner_enabled"
+                        checked={businessSettings.banner_enabled}
+                        onChange={(e) => setBusinessSettings({ ...businessSettings, banner_enabled: e.target.checked })}
+                        style={{ marginRight: '0.25rem' }}
+                      />
+                      <label htmlFor="banner_enabled" style={{ 
+                        fontSize: '0.875rem', 
+                        fontWeight: '500', 
+                        color: '#374151'
+                      }}>
+                        Enable promotional banner
+                      </label>
+                    </div>
+
+                    {businessSettings.banner_enabled && (
+                      <div>
+                        <label style={{ 
+                          display: 'block', 
+                          fontSize: '0.875rem', 
+                          fontWeight: '500', 
+                          color: '#374151',
+                          marginBottom: '0.5rem'
+                        }}>
+                          Banner Text
+                        </label>
+                        <textarea
+                          value={businessSettings.banner_text}
+                          onChange={(e) => setBusinessSettings({ ...businessSettings, banner_text: e.target.value })}
+                          placeholder="Enter promotional message..."
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '0.5rem',
+                            fontSize: '1rem',
+                            minHeight: '3rem',
+                            resize: 'vertical'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Order Status */}
+                  <div style={{
+                    padding: '1.5rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <h3 style={{ 
+                      fontSize: '1.125rem', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      marginBottom: '1rem'
+                    }}>
+                      Order Management
+                    </h3>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input
+                        type="checkbox"
+                        id="is_accepting_orders"
+                        checked={businessSettings.is_accepting_orders}
+                        onChange={(e) => setBusinessSettings({ ...businessSettings, is_accepting_orders: e.target.checked })}
+                        style={{ marginRight: '0.25rem' }}
+                      />
+                      <label htmlFor="is_accepting_orders" style={{ 
+                        fontSize: '0.875rem', 
+                        fontWeight: '500', 
+                        color: '#374151'
+                      }}>
+                        Currently accepting new orders
+                      </label>
+                    </div>
+                    <p style={{ 
+                      fontSize: '0.75rem', 
+                      color: '#6b7280',
+                      marginTop: '0.5rem'
+                    }}>
+                      When disabled, customers will see a message that orders are temporarily unavailable
+                    </p>
+                  </div>
+
+                  {/* Save Button */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'flex-end',
+                    marginTop: '1rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid #e5e7eb'
+                  }}>
+                    <button
+                      onClick={saveBusinessSettings}
+                      disabled={loading}
+                      style={{
+                        backgroundColor: '#dc2626',
+                        color: 'white',
+                        padding: '0.75rem 2rem',
+                        borderRadius: '0.5rem',
+                        border: 'none',
+                        fontWeight: '600',
+                        fontSize: '1rem',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        opacity: loading ? 0.6 : 1
+                      }}
+                    >
+                      {loading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '2rem',
+                borderRadius: '0.5rem',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                textAlign: 'center',
+                color: '#6b7280'
+              }}>
+                Loading business settings...
+              </div>
+            )}
           </div>
         )}
 
@@ -1545,9 +2071,125 @@ export default function AdminPage() {
               borderRadius: '0.5rem',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
             }}>
-              <p style={{ color: '#6b7280' }}>
-                Printer configuration and test printing will be implemented here.
-              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                {/* Auto Print Settings */}
+                <div style={{
+                  padding: '1.5rem',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h3 style={{ 
+                    fontSize: '1.125rem', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    marginBottom: '1rem'
+                  }}>
+                    Auto Print Settings
+                  </h3>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <input
+                      type="checkbox"
+                      id="auto_print"
+                      defaultChecked={true}
+                      style={{ marginRight: '0.25rem' }}
+                    />
+                    <label htmlFor="auto_print" style={{ 
+                      fontSize: '0.875rem', 
+                      fontWeight: '500', 
+                      color: '#374151'
+                    }}>
+                      Automatically print receipts when orders are accepted
+                    </label>
+                  </div>
+                  <p style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#6b7280'
+                  }}>
+                    When enabled, receipts will automatically open in a new window for printing when you accept an order
+                  </p>
+                </div>
+
+                {/* Print Test */}
+                <div style={{
+                  padding: '1.5rem',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h3 style={{ 
+                    fontSize: '1.125rem', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    marginBottom: '1rem'
+                  }}>
+                    Test Print
+                  </h3>
+                  
+                  <p style={{ 
+                    fontSize: '0.875rem', 
+                    color: '#6b7280',
+                    marginBottom: '1rem'
+                  }}>
+                    Print a test receipt to verify your printer is working correctly
+                  </p>
+                  
+                  <button
+                    onClick={printTestReceipt}
+                    style={{
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      padding: '0.75rem 1.5rem',
+                      borderRadius: '0.5rem',
+                      border: 'none',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <Printer size={18} />
+                    Print Test Receipt
+                  </button>
+                </div>
+
+                {/* Printer Instructions */}
+                <div style={{
+                  padding: '1.5rem',
+                  backgroundColor: '#fef3c7',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #fbbf24'
+                }}>
+                  <h3 style={{ 
+                    fontSize: '1.125rem', 
+                    fontWeight: '600', 
+                    color: '#92400e',
+                    marginBottom: '1rem'
+                  }}>
+                    Printer Setup Instructions
+                  </h3>
+                  
+                  <div style={{ color: '#92400e', fontSize: '0.875rem', lineHeight: '1.5' }}>
+                    <p style={{ marginBottom: '0.5rem' }}>
+                      <strong>1. Browser Setup:</strong> Make sure your browser allows pop-ups for this site
+                    </p>
+                    <p style={{ marginBottom: '0.5rem' }}>
+                      <strong>2. Default Printer:</strong> Set your thermal receipt printer as the default printer
+                    </p>
+                    <p style={{ marginBottom: '0.5rem' }}>
+                      <strong>3. Paper Size:</strong> Configure printer for 80mm (3.15") thermal paper width
+                    </p>
+                    <p style={{ marginBottom: '0.5rem' }}>
+                      <strong>4. Print Settings:</strong> Disable headers/footers and set margins to minimum
+                    </p>
+                    <p>
+                      <strong>5. Test Print:</strong> Use the button above to verify everything works correctly
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1653,11 +2295,70 @@ export default function AdminPage() {
                     color: '#374151',
                     marginBottom: '0.25rem'
                   }}>
+                    Photo Upload
+                  </label>
+                  <div style={{
+                    border: '2px dashed #e5e7eb',
+                    borderRadius: '0.5rem',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    backgroundColor: '#f9fafb'
+                  }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      style={{ display: 'none' }}
+                      id="image-upload"
+                    />
+                    <label 
+                      htmlFor="image-upload"
+                      style={{
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <Upload size={32} style={{ color: '#6b7280' }} />
+                      <span style={{ color: '#374151', fontWeight: '500' }}>
+                        Click to upload photo
+                      </span>
+                      <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                        PNG, JPG up to 5MB
+                      </span>
+                    </label>
+                  </div>
+                  {selectedImagePreview && (
+                    <div style={{ marginTop: '1rem' }}>
+                      <img 
+                        src={selectedImagePreview}
+                        alt="Preview"
+                        style={{
+                          maxWidth: '200px',
+                          maxHeight: '200px',
+                          borderRadius: '0.5rem',
+                          border: '1px solid #e5e7eb'
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
                     Category
                   </label>
                   <select
-                    value={menuItemForm.category}
-                    onChange={(e) => setMenuItemForm({ ...menuItemForm, category: e.target.value })}
+                    value={menuItemForm.category_id}
+                    onChange={(e) => setMenuItemForm({ ...menuItemForm, category_id: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '0.5rem',
@@ -1679,13 +2380,13 @@ export default function AdminPage() {
                     color: '#374151',
                     marginBottom: '0.25rem'
                   }}>
-                    Base Price ($)
+                    Price ($)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    value={menuItemForm.base_price}
-                    onChange={(e) => setMenuItemForm({ ...menuItemForm, base_price: parseFloat(e.target.value) || 0 })}
+                    value={menuItemForm.price}
+                    onChange={(e) => setMenuItemForm({ ...menuItemForm, price: parseFloat(e.target.value) || 0 })}
                     style={{
                       width: '100%',
                       padding: '0.5rem',
@@ -1997,7 +2698,474 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 60
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingCategory ? 'Edit Category' : 'Add Category'}
+                </h3>
+                <button
+                  onClick={closeCategoryModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={categoryForm.display_order}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, display_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeCategoryModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveCategory}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingCategory ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Size Modal */}
+      {showSizeModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 60
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingSize ? 'Edit Size' : 'Add Size'}
+                </h3>
+                <button
+                  onClick={closeSizeModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={sizeForm.name}
+                    onChange={(e) => setSizeForm({ ...sizeForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Price Modifier
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={sizeForm.price_modifier}
+                    onChange={(e) => setSizeForm({ ...sizeForm, price_modifier: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    id="is_default"
+                    checked={sizeForm.is_default}
+                    onChange={(e) => setSizeForm({ ...sizeForm, is_default: e.target.checked })}
+                    style={{ marginRight: '0.25rem' }}
+                  />
+                  <label htmlFor="is_default" style={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151'
+                  }}>
+                    Default Size
+                  </label>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Sort Order
+                  </label>
+                  <input
+                    type="number"
+                    value={sizeForm.sort_order}
+                    onChange={(e) => setSizeForm({ ...sizeForm, sort_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeSizeModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSize}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingSize ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modifier Item Modal */}
+      {showModifierItemModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 60
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingModifierItem ? 'Edit Modifier Item' : 'Add Modifier Item'}
+                </h3>
+                <button
+                  onClick={closeModifierItemModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    value={modifierItemForm.name}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={modifierItemForm.price}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, price: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    id="is_default"
+                    checked={modifierItemForm.is_default}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, is_default: e.target.checked })}
+                    style={{ marginRight: '0.25rem' }}
+                  />
+                  <label htmlFor="is_default" style={{ 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151'
+                  }}>
+                    Default Item
+                  </label>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Sort Order
+                  </label>
+                  <input
+                    type="number"
+                    value={modifierItemForm.sort_order}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, sort_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeModifierItemModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveModifierItem}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingModifierItem ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

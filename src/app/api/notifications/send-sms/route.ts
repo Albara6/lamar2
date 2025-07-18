@@ -11,7 +11,7 @@ export async function POST(request: Request) {
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID!
     const authToken = process.env.TWILIO_AUTH_TOKEN!
-    const fromPhone = process.env.TWILIO_FROM_PHONE!
+    const fromPhone = process.env.TWILIO_PHONE_NUMBER!
 
     if (!accountSid || !authToken || !fromPhone) {
       console.error('Missing Twilio environment variables')

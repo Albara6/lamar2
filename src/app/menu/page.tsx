@@ -26,11 +26,25 @@ export default function MenuPage() {
 
   useEffect(() => {
     fetchMenu()
+    
+    // Auto-refresh menu every 15 seconds to pick up admin changes faster
+    const interval = setInterval(() => {
+      fetchMenu()
+    }, 15000)
+    
+    return () => clearInterval(interval)
   }, [])
 
   const fetchMenu = async () => {
     try {
-      const response = await fetch('/api/menu')
+      // Add timestamp to prevent any caching
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/menu?t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       const data = await response.json()
       setMenuData(data)
       setLoading(false)
