@@ -161,17 +161,28 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Create audio element
-      const audio = new Audio('/notification.mp3')
+      const audio = new Audio()
+      audio.src = '/notification.mp3'
       audio.loop = true
       audio.volume = 0.7
+      audio.preload = 'auto'
       
       // Handle audio loading errors gracefully
-      audio.addEventListener('error', () => {
+      audio.addEventListener('error', (e) => {
+        console.error('Audio error:', e)
         console.log('Notification sound file not found - sound alerts disabled')
         audioRef.current = null
       })
 
+      // Handle successful load
+      audio.addEventListener('canplaythrough', () => {
+        console.log('Audio file loaded successfully')
+      })
+
       audioRef.current = audio
+
+      // Try to load the audio file
+      audio.load()
     }
 
     // Cleanup on unmount
@@ -187,19 +198,38 @@ export default function AdminPage() {
   const playNotificationSound = () => {
     if (audioRef.current) {
       if (isPlayingSound) {
-        audioRef.current.currentTime = 0
-        audioRef.current.play().catch(error => {
-          console.log('Audio play failed:', error)
-          // Fallback: Use browser notification API or console log
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('New Order!', {
-              body: 'New order received in admin panel',
-              icon: '/favicon.ico'
-            })
-          } else {
-            console.log('🔔 NEW ORDER ALERT! Check admin panel.')
-          }
-        })
+        // Try to play the sound
+        const playPromise = audioRef.current.play()
+        
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error('Audio play failed:', error)
+            // Request permission and retry if needed
+            if (error.name === 'NotAllowedError' && 'Notification' in window) {
+              Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                  audioRef.current?.play().catch(e => {
+                    console.error('Audio retry failed:', e)
+                    new Notification('New Order!', {
+                      body: 'New order received in admin panel',
+                      icon: '/favicon.ico'
+                    })
+                  })
+                }
+              })
+            } else {
+              // Fallback to browser notification
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('New Order!', {
+                  body: 'New order received in admin panel',
+                  icon: '/favicon.ico'
+                })
+              } else {
+                console.log('🔔 NEW ORDER ALERT! Check admin panel.')
+              }
+            }
+          })
+        }
       } else {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
@@ -207,6 +237,10 @@ export default function AdminPage() {
     } else {
       // Silent fallback when no audio file
       console.log('🔔 NEW ORDER ALERT! (Sound disabled - add notification.mp3)')
+      // Try to request notification permission as fallback
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission()
+      }
     }
   }
 
