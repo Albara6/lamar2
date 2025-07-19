@@ -160,10 +160,9 @@ export default function AdminPage() {
   // Initialize audio on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Create audio element
-      const audio = document.createElement('audio')
+      // Create audio element with inline base64 audio data
+      const audio = new Audio('data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbsAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/jOMwAAAAAAAAAAAAASW5mbwAAAA8AAAADAABuwABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
       audio.id = 'notificationSound'
-      audio.src = '/notification.mp3'
       audio.loop = true
       audio.volume = 0.7
       
@@ -179,8 +178,6 @@ export default function AdminPage() {
         console.log('Audio file loaded successfully')
       })
 
-      // Add to document body
-      document.body.appendChild(audio)
       audioRef.current = audio
     }
 
@@ -188,7 +185,6 @@ export default function AdminPage() {
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
-        document.body.removeChild(audioRef.current)
         audioRef.current = null
       }
     }
@@ -270,12 +266,27 @@ export default function AdminPage() {
     
     if (newOrders.length > 0) {
       setIsPlayingSound(true)
+      // Try to play sound immediately when orders are detected
+      if (audioRef.current) {
+        audioRef.current.play().catch(error => {
+          console.error('Failed to play sound:', error)
+          // Request user interaction if needed
+          if (error.name === 'NotAllowedError') {
+            const userInteraction = window.confirm('Would you like to enable sound notifications for new orders?')
+            if (userInteraction) {
+              audioRef.current?.play().catch(e => console.error('Retry failed:', e))
+            }
+          }
+        })
+      }
     } else {
       setIsPlayingSound(false)
+      // Stop sound when no pending orders
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+      }
     }
-
-    // Play or stop sound based on state
-    playNotificationSound()
   }, [orders.length]) // Only depend on orders changing
 
   useEffect(() => {
