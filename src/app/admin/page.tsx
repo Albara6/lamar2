@@ -160,28 +160,21 @@ export default function AdminPage() {
   // Initialize audio on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Create new audio element
-      audioRef.current = new Audio('/notification.mp3')
-      audioRef.current.loop = false
-      audioRef.current.volume = 0.7
-      audioRef.current.preload = 'auto'
+      // Create audio element
+      const audio = new Audio('/notification.mp3')
+      audio.loop = true
+      audio.volume = 0.7
       
       // Handle audio loading errors gracefully
-      audioRef.current.addEventListener('error', () => {
-        console.error('Notification sound file not found - sound alerts disabled')
+      audio.addEventListener('error', () => {
+        console.log('Notification sound file not found - sound alerts disabled')
         audioRef.current = null
       })
 
-      // Request notification permission
-      if ('Notification' in window) {
-        Notification.requestPermission()
-      }
-
-      // Test audio load
-      audioRef.current.load()
+      audioRef.current = audio
     }
 
-    // Cleanup
+    // Cleanup on unmount
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
@@ -193,41 +186,27 @@ export default function AdminPage() {
   // Play notification sound (with fallback)
   const playNotificationSound = () => {
     if (audioRef.current) {
-      // Try to play the sound multiple times in case of failure
-      const tryPlay = async (attempts = 3) => {
-        try {
-          audioRef.current!.currentTime = 0
-          await audioRef.current!.play()
-        } catch (error) {
-          console.error('Audio play failed:', error)
-          if (attempts > 1) {
-            setTimeout(() => tryPlay(attempts - 1), 100)
+      if (isPlayingSound) {
+        audioRef.current.currentTime = 0
+        audioRef.current.play().catch(error => {
+          console.log('Audio play failed:', error)
+          // Fallback: Use browser notification API or console log
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('New Order!', {
+              body: 'New order received in admin panel',
+              icon: '/favicon.ico'
+            })
           } else {
-            // Fallback to browser notification after all attempts fail
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('New Order!', {
-                body: 'New order received in admin panel',
-                icon: '/favicon.ico'
-              })
-            } else {
-              console.log('🔔 NEW ORDER ALERT! Check admin panel.')
-            }
+            console.log('🔔 NEW ORDER ALERT! Check admin panel.')
           }
-        }
+        })
+      } else {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
       }
-      
-      tryPlay()
     } else {
       // Silent fallback when no audio file
-      console.error('🔔 NEW ORDER ALERT! (Sound disabled - notification.mp3 not loaded)')
-      
-      // Try browser notification as fallback
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('New Order!', {
-          body: 'New order received in admin panel',
-          icon: '/favicon.ico'
-        })
-      }
+      console.log('🔔 NEW ORDER ALERT! (Sound disabled - add notification.mp3)')
     }
   }
 
@@ -250,24 +229,14 @@ export default function AdminPage() {
     )
     
     if (newOrders.length > 0) {
-      if (!isPlayingSound) {
-        setIsPlayingSound(true)
-        // Delay the sound slightly to ensure audio is ready
-        setTimeout(() => {
-          playNotificationSound()
-        }, 100)
-      }
-    } else if (isPlayingSound) {
+      setIsPlayingSound(true)
+    } else {
       setIsPlayingSound(false)
     }
 
-    // Cleanup function to ensure sound state is reset
-    return () => {
-      if (isPlayingSound) {
-        setIsPlayingSound(false)
-      }
-    }
-  }, [orders.length, isPlayingSound]) // Stable dependencies
+    // Play or stop sound based on state
+    playNotificationSound()
+  }, [orders.length]) // Only depend on orders changing
 
   useEffect(() => {
     if (authenticated) {
