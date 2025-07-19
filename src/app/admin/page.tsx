@@ -161,11 +161,11 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Create audio element
-      const audio = new Audio()
+      const audio = document.createElement('audio')
+      audio.id = 'notificationSound'
       audio.src = '/notification.mp3'
       audio.loop = true
       audio.volume = 0.7
-      audio.preload = 'auto'
       
       // Handle audio loading errors gracefully
       audio.addEventListener('error', (e) => {
@@ -179,16 +179,16 @@ export default function AdminPage() {
         console.log('Audio file loaded successfully')
       })
 
+      // Add to document body
+      document.body.appendChild(audio)
       audioRef.current = audio
-
-      // Try to load the audio file
-      audio.load()
     }
 
     // Cleanup on unmount
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
+        document.body.removeChild(audioRef.current)
         audioRef.current = null
       }
     }
@@ -197,42 +197,48 @@ export default function AdminPage() {
   // Play notification sound (with fallback)
   const playNotificationSound = () => {
     if (audioRef.current) {
-      if (isPlayingSound) {
-        // Try to play the sound
-        const playPromise = audioRef.current.play()
-        
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
+      try {
+        if (isPlayingSound) {
+          // Try to play the sound
+          audioRef.current.play().catch(error => {
             console.error('Audio play failed:', error)
             // Request permission and retry if needed
-            if (error.name === 'NotAllowedError' && 'Notification' in window) {
-              Notification.requestPermission().then(permission => {
-                if (permission === 'granted') {
-                  audioRef.current?.play().catch(e => {
-                    console.error('Audio retry failed:', e)
-                    new Notification('New Order!', {
-                      body: 'New order received in admin panel',
-                      icon: '/favicon.ico'
+            if (error.name === 'NotAllowedError') {
+              // Try to request user interaction first
+              const userInteraction = window.confirm('Would you like to enable sound notifications for new orders?')
+              if (userInteraction) {
+                audioRef.current?.play().catch(e => {
+                  console.error('Audio retry failed:', e)
+                  // Fall back to browser notifications
+                  if ('Notification' in window) {
+                    Notification.requestPermission().then(permission => {
+                      if (permission === 'granted') {
+                        new Notification('New Order!', {
+                          body: 'New order received in admin panel',
+                          icon: '/favicon.ico'
+                        })
+                      }
                     })
-                  })
-                }
-              })
-            } else {
-              // Fallback to browser notification
-              if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification('New Order!', {
-                  body: 'New order received in admin panel',
-                  icon: '/favicon.ico'
+                  }
                 })
-              } else {
-                console.log('🔔 NEW ORDER ALERT! Check admin panel.')
               }
             }
           })
+        } else {
+          audioRef.current.pause()
+          audioRef.current.currentTime = 0
         }
-      } else {
-        audioRef.current.pause()
-        audioRef.current.currentTime = 0
+      } catch (error) {
+        console.error('Audio playback error:', error)
+        // Fallback to browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('New Order!', {
+            body: 'New order received in admin panel',
+            icon: '/favicon.ico'
+          })
+        } else {
+          console.log('🔔 NEW ORDER ALERT! Check admin panel.')
+        }
       }
     } else {
       // Silent fallback when no audio file
