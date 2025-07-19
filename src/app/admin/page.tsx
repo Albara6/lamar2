@@ -1,7 +1,7 @@
 'use client'
 
-import React from 'react'
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import type { JSX as JSXType } from 'react/jsx-runtime'
 import { Plus, Edit, Trash2, Save, X, Eye, EyeOff, Upload, Printer, Settings, ShoppingBag, Building, Clock, CheckCircle, XCircle, RotateCcw } from 'lucide-react'
 
 interface MenuItem {
@@ -48,8 +48,9 @@ interface ModifierItem {
 interface MenuItemModifierGroup {
   id: string
   menu_item_id: string
+  menu_item_size_id?: string
   modifier_group_id: string
-  modifier_groups: ModifierGroup
+  modifier_groups?: ModifierGroup
 }
 
 interface BusinessSettings {
@@ -612,29 +613,55 @@ export default function AdminPage() {
   }
 
   // Category management functions
-  const saveCategory = async () => {
-    // For now, just update local state since categories are simple
-    if (editingCategory) {
-      setCategories(categories.map(cat => 
-        cat.id === editingCategory.id 
-          ? { ...cat, name: categoryForm.name, display_order: categoryForm.display_order }
-          : cat
-      ))
-    } else {
-      const newCategory = {
-        id: categoryForm.name.toLowerCase().replace(/\s+/g, '_'),
-        name: categoryForm.name,
-        display_order: categoryForm.display_order
-      }
-      setCategories([...categories, newCategory])
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/admin/categories')
+      const data = await response.json()
+      setCategories(data.categories || [])
+    } catch (error) {
+      console.error('Failed to fetch categories:', error)
     }
-    closeCategoryModal()
   }
 
-  const deleteCategory = (id: string) => {
-    if (confirm('Are you sure you want to delete this category?')) {
-      setCategories(categories.filter(cat => cat.id !== id))
+  const saveCategory = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(categoryForm)
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save category')
+      }
+      
+      await fetchCategories()
+      closeCategoryModal()
+    } catch (error) {
+      console.error('Failed to save category:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save category')
     }
+    setLoading(false)
+  }
+
+  const deleteCategory = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this category?')) return
+    setLoading(true)
+    try {
+      const response = await fetch('/api/admin/categories', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      })
+      if (!response.ok) throw new Error('Failed to delete category')
+      await fetchCategories()
+    } catch (error) {
+      alert('Failed to delete category')
+      console.error(error)
+    }
+    setLoading(false)
   }
 
   const openCategoryModal = (category?: Category) => {
@@ -648,28 +675,98 @@ export default function AdminPage() {
       setEditingCategory(null)
       setCategoryForm({
         name: '',
-        display_order: categories.length + 1
+        display_order: categories.length
       })
     }
     setShowCategoryModal(true)
   }
 
+  // On mount and after auth, fetch categories
+  useEffect(() => {
+    if (authenticated) {
+      fetchCategories()
+    }
+  }, [authenticated])
+
   const closeCategoryModal = () => {
     setShowCategoryModal(false)
     setEditingCategory(null)
+    setCategoryForm({
+      name: '',
+      display_order: 0
+    })
   }
 
   // Size management functions
-  const saveSize = async () => {
-    console.log('Save size function called')
-    if (!selectedMenuItemForSizes) return
-    alert('Size management will be fully implemented in the next update')
-    closeSizeModal()
+  const fetchSizes = async (menuItemId: string) => {
+    try {
+      const response = await fetch(`/api/admin/menu-items/${menuItemId}/sizes`)
+      const data = await response.json()
+      return data.sizes || []
+    } catch (error) {
+      console.error('Failed to fetch sizes:', error)
+      return []
+    }
   }
 
-  const deleteSize = async (sizeId: string) => {
-    console.log('Delete size function called')
-    alert('Size management will be fully implemented in the next update')
+  const saveSize = async () => {
+    if (!selectedMenuItemForSizes) return
+    setLoading(true)
+    try {
+      const url = editingSize 
+        ? `/api/admin/menu-items/${selectedMenuItemForSizes.id}/sizes/${editingSize.id}`
+        : `/api/admin/menu-items/${selectedMenuItemForSizes.id}/sizes`
+      
+      const response = await fetch(url, {
+        method: editingSize ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sizeForm)
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save size')
+      }
+      
+      const sizes = await fetchSizes(selectedMenuItemForSizes.id)
+      setMenuItems(prev => prev.map(item => 
+        item.id === selectedMenuItemForSizes.id 
+          ? { ...item, menu_item_sizes: sizes }
+          : item
+      ))
+      closeSizeModal()
+    } catch (error) {
+      console.error('Failed to save size:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save size')
+    }
+    setLoading(false)
+  }
+
+  const deleteSize = async (menuItemId: string, sizeId: string) => {
+    if (!confirm('Are you sure you want to delete this size?')) return
+    
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/menu-items/${menuItemId}/sizes/${sizeId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete size')
+      }
+      
+      const sizes = await fetchSizes(menuItemId)
+      setMenuItems(prev => prev.map(item => 
+        item.id === menuItemId 
+          ? { ...item, menu_item_sizes: sizes }
+          : item
+      ))
+    } catch (error) {
+      console.error('Failed to delete size:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete size')
+    }
+    setLoading(false)
   }
 
   const openSizeModal = (menuItem: MenuItem, size?: MenuItemSize) => {
@@ -688,7 +785,7 @@ export default function AdminPage() {
         name: '',
         price_modifier: 0,
         is_default: false,
-        sort_order: (menuItem.menu_item_sizes?.length || 0) + 1
+        sort_order: (menuItem.menu_item_sizes?.length || 0)
       })
     }
     setShowSizeModal(true)
@@ -698,19 +795,84 @@ export default function AdminPage() {
     setShowSizeModal(false)
     setEditingSize(null)
     setSelectedMenuItemForSizes(null)
+    setSizeForm({
+      name: '',
+      price_modifier: 0,
+      is_default: false,
+      sort_order: 0
+    })
   }
 
   // Modifier item management functions  
-  const saveModifierItem = async () => {
-    console.log('Save modifier item function called')
-    if (!selectedModifierGroupForItems) return
-    alert('Modifier item management will be fully implemented in the next update')
-    closeModifierItemModal()
+  const fetchModifierItems = async (groupId: string) => {
+    try {
+      const response = await fetch(`/api/admin/modifier-groups/${groupId}/items`)
+      const data = await response.json()
+      return data.modifierItems || []
+    } catch (error) {
+      console.error('Failed to fetch modifier items:', error)
+      return []
+    }
   }
 
-  const deleteModifierItem = async (itemId: string) => {
-    console.log('Delete modifier item function called')
-    alert('Modifier item management will be fully implemented in the next update')
+  const saveModifierItem = async () => {
+    if (!selectedModifierGroupForItems) return
+    setLoading(true)
+    try {
+      const url = editingModifierItem 
+        ? `/api/admin/modifier-groups/${selectedModifierGroupForItems.id}/items/${editingModifierItem.id}`
+        : `/api/admin/modifier-groups/${selectedModifierGroupForItems.id}/items`
+      
+      const response = await fetch(url, {
+        method: editingModifierItem ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(modifierItemForm)
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save modifier item')
+      }
+      
+      const items = await fetchModifierItems(selectedModifierGroupForItems.id)
+      setModifierGroups(prev => prev.map(group => 
+        group.id === selectedModifierGroupForItems.id 
+          ? { ...group, modifier_items: items }
+          : group
+      ))
+      closeModifierItemModal()
+    } catch (error) {
+      console.error('Failed to save modifier item:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save modifier item')
+    }
+    setLoading(false)
+  }
+
+  const deleteModifierItem = async (groupId: string, itemId: string) => {
+    if (!confirm('Are you sure you want to delete this modifier item?')) return
+    
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/modifier-groups/${groupId}/items/${itemId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete modifier item')
+      }
+      
+      const items = await fetchModifierItems(groupId)
+      setModifierGroups(prev => prev.map(group => 
+        group.id === groupId 
+          ? { ...group, modifier_items: items }
+          : group
+      ))
+    } catch (error) {
+      console.error('Failed to delete modifier item:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete modifier item')
+    }
+    setLoading(false)
   }
 
   const openModifierItemModal = (group: ModifierGroup, item?: ModifierItem) => {
@@ -729,7 +891,7 @@ export default function AdminPage() {
         name: '',
         price: 0,
         is_default: false,
-        sort_order: (group.modifier_items?.length || 0) + 1
+        sort_order: (group.modifier_items?.length || 0)
       })
     }
     setShowModifierItemModal(true)
@@ -739,6 +901,12 @@ export default function AdminPage() {
     setShowModifierItemModal(false)
     setEditingModifierItem(null)
     setSelectedModifierGroupForItems(null)
+    setModifierItemForm({
+      name: '',
+      price: 0,
+      is_default: false,
+      sort_order: 0
+    })
   }
 
   const saveBusinessSettings = async () => {
@@ -825,21 +993,19 @@ export default function AdminPage() {
   }
 
   // Add new state variables after existing form states (around line 137)
-  const [categories, setCategories] = useState<Category[]>([
-    { id: 'burgers', name: 'Crazy Burgers', display_order: 1 },
-    { id: 'chicken', name: 'Crispy Chicken', display_order: 2 },
-    { id: 'phillys', name: 'Philly Cheesesteaks', display_order: 3 }
-  ])
-  
-  // Modal states for new features
+  const [categories, setCategories] = useState<Category[]>([])
   const [showCategoryModal, setShowCategoryModal] = useState(false)
   const [showSizeModal, setShowSizeModal] = useState(false)
   const [showModifierItemModal, setShowModifierItemModal] = useState(false)
+  const [showModifierGroupAssignModal, setShowModifierGroupAssignModal] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [editingSize, setEditingSize] = useState<MenuItemSize | null>(null)
   const [editingModifierItem, setEditingModifierItem] = useState<ModifierItem | null>(null)
   const [selectedMenuItemForSizes, setSelectedMenuItemForSizes] = useState<MenuItem | null>(null)
+  const [selectedMenuItemForModifiers, setSelectedMenuItemForModifiers] = useState<MenuItem | null>(null)
   const [selectedModifierGroupForItems, setSelectedModifierGroupForItems] = useState<ModifierGroup | null>(null)
+  const [selectedSizeForModifiers, setSelectedSizeForModifiers] = useState<MenuItemSize | null>(null)
+  const [isAllSizesSelected, setIsAllSizesSelected] = useState(false)
   
   // Form states for new features
   const [categoryForm, setCategoryForm] = useState({
@@ -864,6 +1030,96 @@ export default function AdminPage() {
   // Enhanced menu item form to include sizes and modifier groups
   const [menuItemSizes, setMenuItemSizes] = useState<MenuItemSize[]>([])
   const [selectedModifierGroups, setSelectedModifierGroups] = useState<string[]>([])
+
+  // Place fetchMenuItemModifierGroups above removeModifierGroup
+  const fetchMenuItemModifierGroups = async (menuItemId: string) => {
+    try {
+      const response = await fetch(`/api/admin/menu-items/${menuItemId}/modifier-groups`)
+      const data = await response.json()
+      return data.menuItemModifierGroups || []
+    } catch (error) {
+      console.error('Failed to fetch menu item modifier groups:', error)
+      return []
+    }
+  }
+
+  const removeModifierGroup = async (menuItemId: string, modifierGroupId: string, sizeId?: string) => {
+    if (!confirm('Are you sure you want to remove this modifier group?')) return;
+    
+    setLoading(true);
+    try {
+      const requestBody = {
+        modifier_group_id: modifierGroupId,
+        menu_item_size_id: sizeId && sizeId !== 'null' && sizeId !== 'undefined' ? sizeId : null
+      };
+      
+      const response = await fetch(`/api/admin/menu-items/${menuItemId}/modifier-groups`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to remove modifier group');
+      }
+      
+      const menuItemModifierGroups = await fetchMenuItemModifierGroups(menuItemId);
+      setMenuItems(prev => prev.map(item =>
+        item.id === menuItemId
+          ? { ...item, menu_item_modifier_groups: menuItemModifierGroups }
+          : item
+      ));
+      
+    } catch (error) {
+      console.error('Failed to remove modifier group:', error);
+      alert(error instanceof Error ? error.message : 'Failed to remove modifier group from menu item');
+    }
+    setLoading(false);
+  }
+
+  const openModifierGroupAssignModal = (menuItem: MenuItem, size?: MenuItemSize) => {
+    setSelectedMenuItemForModifiers(menuItem)
+    setSelectedSizeForModifiers(size || null)
+    setIsAllSizesSelected(!size) // If no size provided, default to "all sizes"
+    setShowModifierGroupAssignModal(true)
+  }
+
+  const closeModifierGroupAssignModal = () => {
+    setShowModifierGroupAssignModal(false)
+    setSelectedMenuItemForModifiers(null)
+    setSelectedSizeForModifiers(null)
+    setIsAllSizesSelected(false)
+  }
+
+  const assignModifierGroup = async (menuItemId: string, modifierGroupId: string, sizeId?: string) => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/admin/menu-items/${menuItemId}/modifier-groups`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modifier_group_id: modifierGroupId,
+          menu_item_size_id: sizeId === 'all' ? 'all' : sizeId
+        })
+      })
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to assign modifier group')
+      }
+      const menuItemModifierGroups = await fetchMenuItemModifierGroups(menuItemId)
+      setMenuItems(prev => prev.map(item =>
+        item.id === menuItemId
+          ? { ...item, menu_item_modifier_groups: menuItemModifierGroups }
+          : item
+      ))
+      closeModifierGroupAssignModal()
+    } catch (error) {
+      console.error('Failed to assign modifier group:', error)
+      alert(error instanceof Error ? error.message : 'Failed to assign modifier group')
+    }
+    setLoading(false)
+  }
 
   if (!authenticated) {
     return (
@@ -976,7 +1232,7 @@ export default function AdminPage() {
             alignItems: 'center' 
           }}>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-              🍗 Crazy Chicken Admin Panel
+              🍗 {businessSettings?.name || 'Crazy Chicken'} Admin Panel
             </h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               {isPlayingSound && (
@@ -1021,6 +1277,7 @@ export default function AdminPage() {
             {[
               { id: 'orders', label: 'Orders', icon: <ShoppingBag size={18} /> },
               { id: 'history', label: 'Order History', icon: <Clock size={18} /> },
+              { id: 'categories', label: 'Categories', icon: <Building size={18} /> },
               { id: 'menu', label: 'Menu Items', icon: <ShoppingBag size={18} /> },
               { id: 'modifiers', label: 'Modifiers', icon: <Settings size={18} /> },
               { id: 'settings', label: 'Business Settings', icon: <Building size={18} /> },
@@ -1075,6 +1332,78 @@ export default function AdminPage() {
             marginBottom: '2rem' 
           }}>
             Loading...
+          </div>
+        )}
+
+        {/* Categories Tab */}
+        {activeTab === 'categories' && (
+          <div>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: '2rem'
+            }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#374151' }}>
+                Menu Categories
+              </h2>
+              <button
+                onClick={() => openCategoryModal()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <Plus size={20} />
+                Add Category
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gap: '1rem' }}>
+              {categories.map(category => (
+                <div
+                  key={category.id}
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '0.5rem',
+                    padding: '1rem',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#374151' }}>
+                        {category.name}
+                      </h3>
+                      <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                        Display Order: {category.display_order}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => openCategoryModal(category)}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#f3f4f6',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Edit size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1627,7 +1956,8 @@ export default function AdminPage() {
                   <div style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
-                    alignItems: 'center' 
+                    alignItems: 'center',
+                    marginBottom: '1rem' 
                   }}>
                     <span style={{ 
                       fontSize: '1.25rem', 
@@ -1647,6 +1977,155 @@ export default function AdminPage() {
                     }}>
                       {item.category_id}
                     </span>
+                  </div>
+
+                  {/* Sizes */}
+                  {item.menu_item_sizes && item.menu_item_sizes.length > 0 && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <h4 style={{ 
+                          fontSize: '0.875rem', 
+                          fontWeight: '600', 
+                          color: '#374151'
+                        }}>
+                          Sizes:
+                        </h4>
+                        <button
+                          onClick={() => openSizeModal(item)}
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.5rem',
+                            backgroundColor: '#dbeafe',
+                            color: '#1e40af',
+                            border: 'none',
+                            borderRadius: '0.25rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + Add Size
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {item.menu_item_sizes.map(size => (
+                          <div key={size.id} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.75rem',
+                            color: '#6b7280'
+                          }}>
+                            <span>{size.name} {size.is_default && '(Default)'}</span>
+                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                              <span>+${size.price_modifier.toFixed(2)}</span>
+                              <button
+                                onClick={() => openSizeModal(item, size)}
+                                style={{
+                                  padding: '0.25rem',
+                                  backgroundColor: '#f3f4f6',
+                                  border: 'none',
+                                  borderRadius: '0.125rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button
+                                onClick={() => deleteSize(item.id, size.id)}
+                                style={{
+                                  padding: '0.25rem',
+                                  backgroundColor: '#fef2f2',
+                                  color: '#ef4444',
+                                  border: 'none',
+                                  borderRadius: '0.125rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modifier Groups */}
+                  <div>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <h4 style={{ 
+                        fontSize: '0.875rem', 
+                        fontWeight: '600', 
+                        color: '#374151'
+                      }}>
+                        Modifier Groups:
+                      </h4>
+                      <button
+                        onClick={() => openModifierGroupAssignModal(item)}
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#d1fae5',
+                          color: '#065f46',
+                          border: 'none',
+                          borderRadius: '0.25rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Assign Group
+                      </button>
+                    </div>
+                    {item.menu_item_modifier_groups && item.menu_item_modifier_groups.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {item.menu_item_modifier_groups.map(modGroup => (
+                          <div key={modGroup.id} style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            fontSize: '0.75rem',
+                            color: '#6b7280'
+                          }}>
+                            <span>
+                              {modGroup.modifier_groups?.name || 'Unknown Group'}
+                              {modGroup.menu_item_size_id 
+                                ? ` (${item.menu_item_sizes?.find(s => s.id === modGroup.menu_item_size_id)?.name || 'Unknown size'})`
+                                : ' (🌟 All sizes)'
+                              }
+                            </span>
+                            <button
+                              onClick={() => removeModifierGroup(item.id, modGroup.modifier_group_id, modGroup.menu_item_size_id)}
+                              style={{
+                                padding: '0.25rem',
+                                backgroundColor: '#fef2f2',
+                                color: '#ef4444',
+                                border: 'none',
+                                borderRadius: '0.125rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#9ca3af',
+                        fontStyle: 'italic'
+                      }}>
+                        No modifier groups assigned
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1757,31 +2236,87 @@ export default function AdminPage() {
                     </div>
                   </div>
                   
-                  {group.modifier_items && group.modifier_items.length > 0 && (
-                    <div>
+                  <div>
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginBottom: '0.5rem'
+                    }}>
                       <h4 style={{ 
                         fontSize: '0.875rem', 
                         fontWeight: '600', 
-                        color: '#374151',
-                        marginBottom: '0.5rem'
+                        color: '#374151'
                       }}>
-                        Items:
+                        Modifier Items:
                       </h4>
+                      <button
+                        onClick={() => openModifierItemModal(group)}
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.25rem 0.5rem',
+                          backgroundColor: '#dbeafe',
+                          color: '#1e40af',
+                          border: 'none',
+                          borderRadius: '0.25rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + Add Item
+                      </button>
+                    </div>
+                    {group.modifier_items && group.modifier_items.length > 0 ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         {group.modifier_items.map(item => (
                           <div key={item.id} style={{ 
                             display: 'flex', 
                             justifyContent: 'space-between',
+                            alignItems: 'center',
                             fontSize: '0.75rem',
                             color: '#6b7280'
                           }}>
-                            <span>{item.name}</span>
-                            <span>${(item.price ?? 0).toFixed(2)}</span>
+                            <span>{item.name} {item.is_default && '(Default)'}</span>
+                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                              <span>${(item.price ?? 0).toFixed(2)}</span>
+                              <button
+                                onClick={() => openModifierItemModal(group, item)}
+                                style={{
+                                  padding: '0.25rem',
+                                  backgroundColor: '#f3f4f6',
+                                  border: 'none',
+                                  borderRadius: '0.125rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit size={12} />
+                              </button>
+                              <button
+                                onClick={() => deleteModifierItem(group.id, item.id)}
+                                style={{
+                                  padding: '0.25rem',
+                                  backgroundColor: '#fef2f2',
+                                  color: '#ef4444',
+                                  border: 'none',
+                                  borderRadius: '0.125rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <p style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#9ca3af',
+                        fontStyle: 'italic'
+                      }}>
+                        No modifier items added yet
+                      </p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -2195,6 +2730,137 @@ export default function AdminPage() {
         )}
       </div>
 
+      {/* Category Modal */}
+      {showCategoryModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 50
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingCategory ? 'Edit Category' : 'Add New Category'}
+                </h3>
+                <button
+                  onClick={closeCategoryModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Category Name
+                  </label>
+                  <input
+                    type="text"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter category name"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={categoryForm.display_order}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, display_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter display order"
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeCategoryModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveCategory}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingCategory ? 'Save Changes' : 'Add Category'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Menu Item Modal */}
       {showMenuItemModal && (
         <div style={{
@@ -2366,9 +3032,12 @@ export default function AdminPage() {
                       borderRadius: '0.25rem'
                     }}
                   >
-                    <option value="burgers">Burgers</option>
-                    <option value="chicken">Chicken</option>
-                    <option value="phillys">Phillys</option>
+                    <option value="">Select a category</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -2413,6 +3082,162 @@ export default function AdminPage() {
                   </label>
                 </div>
 
+                {editingMenuItem && (
+                  <>
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        fontSize: '0.875rem', 
+                        fontWeight: '500', 
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Sizes
+                      </label>
+                      <div style={{ 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        padding: '1rem',
+                        marginBottom: '1rem'
+                      }}>
+                        {editingMenuItem.menu_item_sizes?.map(size => (
+                          <div
+                            key={size.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '0.5rem',
+                              borderBottom: '1px solid #e5e7eb'
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: '500' }}>{size.name}</p>
+                              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                                Price Modifier: ${size.price_modifier.toFixed(2)}
+                                {size.is_default && ' (Default)'}
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                onClick={() => openSizeModal(editingMenuItem, size)}
+                                style={{
+                                  padding: '0.5rem',
+                                  backgroundColor: '#f3f4f6',
+                                  border: 'none',
+                                  borderRadius: '0.375rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={() => deleteSize(editingMenuItem.id, size.id)}
+                                style={{
+                                  padding: '0.5rem',
+                                  backgroundColor: '#fee2e2',
+                                  border: 'none',
+                                  borderRadius: '0.375rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => openSizeModal(editingMenuItem)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem',
+                            backgroundColor: '#f3f4f6',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            cursor: 'pointer',
+                            marginTop: '1rem'
+                          }}
+                        >
+                          <Plus size={16} />
+                          Add Size
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ 
+                        display: 'block', 
+                        fontSize: '0.875rem', 
+                        fontWeight: '500', 
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                      }}>
+                        Modifier Groups
+                      </label>
+                      <div style={{ 
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        padding: '1rem',
+                        marginBottom: '1rem'
+                      }}>
+                        {editingMenuItem.menu_item_modifier_groups?.map(group => (
+                          <div
+                            key={group.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '0.5rem',
+                              borderBottom: '1px solid #e5e7eb'
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontWeight: '500' }}>{group.modifier_groups?.name}</p>
+                              <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                                {group.menu_item_size_id 
+                                  ? `For size: ${editingMenuItem.menu_item_sizes?.find(s => s.id === group.menu_item_size_id)?.name || 'Unknown'}`
+                                  : '🌟 For all sizes'
+                                }
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => removeModifierGroup(editingMenuItem.id, group.modifier_group_id, group.menu_item_size_id)}
+                              style={{
+                                padding: '0.5rem',
+                                backgroundColor: '#fee2e2',
+                                border: 'none',
+                                borderRadius: '0.375rem',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => openModifierGroupAssignModal(editingMenuItem)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem',
+                            backgroundColor: '#f3f4f6',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            cursor: 'pointer',
+                            marginTop: '1rem'
+                          }}
+                        >
+                          <Plus size={16} />
+                          Add Modifier Group
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div style={{ 
                   display: 'flex', 
                   gap: '1rem', 
@@ -2443,6 +3268,181 @@ export default function AdminPage() {
                     }}
                   >
                     {editingMenuItem ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Size Modal */}
+      {showSizeModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 50
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingSize ? 'Edit Size' : 'Add New Size'}
+                </h3>
+                <button
+                  onClick={closeSizeModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Size Name
+                  </label>
+                  <input
+                    type="text"
+                    value={sizeForm.name}
+                    onChange={(e) => setSizeForm({ ...sizeForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter size name"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Price Modifier
+                  </label>
+                  <input
+                    type="number"
+                    value={sizeForm.price_modifier}
+                    onChange={(e) => setSizeForm({ ...sizeForm, price_modifier: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter price modifier"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={sizeForm.is_default}
+                      onChange={(e) => setSizeForm({ ...sizeForm, is_default: e.target.checked })}
+                    />
+                    Set as Default Size
+                  </label>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={sizeForm.sort_order}
+                    onChange={(e) => setSizeForm({ ...sizeForm, sort_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter display order"
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeSizeModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveSize}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingSize ? 'Save Changes' : 'Add Size'}
                   </button>
                 </div>
               </div>
@@ -2614,6 +3614,181 @@ export default function AdminPage() {
                     }}
                   >
                     {editingModifierGroup ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modifier Item Modal */}
+      {showModifierItemModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 50
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  {editingModifierItem ? 'Edit Modifier Item' : 'Add New Modifier Item'}
+                </h3>
+                <button
+                  onClick={closeModifierItemModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Item Name
+                  </label>
+                  <input
+                    type="text"
+                    value={modifierItemForm.name}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, name: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter item name"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Price
+                  </label>
+                  <input
+                    type="number"
+                    value={modifierItemForm.price}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, price: parseFloat(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter price"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                    color: '#374151',
+                    cursor: 'pointer'
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={modifierItemForm.is_default}
+                      onChange={(e) => setModifierItemForm({ ...modifierItemForm, is_default: e.target.checked })}
+                    />
+                    Set as Default Selection
+                  </label>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Display Order
+                  </label>
+                  <input
+                    type="number"
+                    value={modifierItemForm.sort_order}
+                    onChange={(e) => setModifierItemForm({ ...modifierItemForm, sort_order: parseInt(e.target.value) || 0 })}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                    placeholder="Enter display order"
+                  />
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeModifierItemModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveModifierItem}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {editingModifierItem ? 'Save Changes' : 'Add Item'}
                   </button>
                 </div>
               </div>
@@ -3159,6 +4334,189 @@ export default function AdminPage() {
                     }}
                   >
                     {editingModifierItem ? 'Update' : 'Create'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modifier Group Assign Modal */}
+      {showModifierGroupAssignModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1rem',
+          zIndex: 60
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            maxWidth: '32rem',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ padding: '2rem' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1.5rem'
+              }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
+                  Assign Modifier Group to Menu Item
+                </h3>
+                <button
+                  onClick={closeModifierGroupAssignModal}
+                  style={{
+                    color: '#6b7280',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem'
+                  }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Select Menu Item
+                  </label>
+                  <select
+                    value={selectedMenuItemForModifiers?.id}
+                    onChange={(e) => setSelectedMenuItemForModifiers(menuItems.find(item => item.id === e.target.value) || null)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  >
+                    <option value="">Select a menu item</option>
+                    {menuItems.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Select Size
+                  </label>
+                  <select
+                    value={isAllSizesSelected ? 'all' : (selectedSizeForModifiers?.id || '')}
+                    onChange={(e) => {
+                      if (e.target.value === 'all') {
+                        setIsAllSizesSelected(true)
+                        setSelectedSizeForModifiers(null)
+                      } else {
+                        setIsAllSizesSelected(false)
+                        const size = selectedMenuItemForModifiers?.menu_item_sizes?.find(s => s.id === e.target.value) || null
+                        setSelectedSizeForModifiers(size)
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  >
+                    <option value="all">🌟 All Sizes</option>
+                    {selectedMenuItemForModifiers?.menu_item_sizes?.map(size => (
+                      <option key={size.id} value={size.id}>
+                        {size.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.25rem'
+                  }}>
+                    Select Modifier Group
+                  </label>
+                  <select
+                    value={selectedModifierGroupForItems?.id}
+                    onChange={(e) => setSelectedModifierGroupForItems(modifierGroups.find(group => group.id === e.target.value) || null)}
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem'
+                    }}
+                  >
+                    <option value="">Select a modifier group</option>
+                    {modifierGroups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '1rem', 
+                  justifyContent: 'flex-end',
+                  marginTop: '1rem'
+                }}>
+                  <button
+                    onClick={closeModifierGroupAssignModal}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.25rem',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => assignModifierGroup(
+                      selectedMenuItemForModifiers?.id || '', 
+                      selectedModifierGroupForItems?.id || '', 
+                      isAllSizesSelected ? 'all' : selectedSizeForModifiers?.id
+                    )}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Assign Modifier Group
                   </button>
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { Resend } from 'resend'
+import { supabaseAdmin } from '@/lib/supabase'
 
 // Initialize Resend with fallback for missing API key
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
@@ -33,6 +34,27 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    // Fetch business settings for dynamic information
+    let businessSettings = null
+    try {
+      const { data: settings, error: settingsError } = await supabaseAdmin
+        .from('business_settings')
+        .select('*')
+        .single()
+      
+      if (!settingsError) {
+        businessSettings = settings
+      }
+    } catch (error) {
+      console.error('Failed to fetch business settings for email:', error)
+    }
+
+    // Use business settings or defaults
+    const businessName = businessSettings?.name || 'CRAZY CHICKEN'
+    const businessAddress = businessSettings?.address || '123 Food Street, City, State 12345'
+    const businessEmail = businessSettings?.email || 'support@crazychicken.us'
+    const businessPhone = businessSettings?.phone || '(555) 123-CRAZY'
+
     const itemsList = order.items.map((item: any) => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
@@ -63,12 +85,17 @@ export async function POST(request: Request) {
       <html>
         <head>
           <meta charset="utf-8">
-          <title>Order Confirmation - Crazy Chicken</title>
+          <title>Order Confirmation - ${businessName}</title>
         </head>
         <body style="font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; color: #374151; margin: 0; padding: 0;">
           <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 32px;">
-              <h1 style="color: #dc2626; font-size: 24px; margin: 0;">🍗 CRAZY CHICKEN</h1>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px;">
+                <img src="${process.env.NEXT_PUBLIC_APP_URL || 'https://crazy-chicken-restaurant.vercel.app'}/business_logo.PNG" 
+                     alt="${businessName}" 
+                     style="height: 48px; width: auto;" />
+                <h1 style="color: #dc2626; font-size: 24px; margin: 0;">🍗 ${businessName}</h1>
+              </div>
               <p style="color: #6b7280; margin-top: 8px;">Order Confirmation</p>
             </div>
 
@@ -103,7 +130,8 @@ export async function POST(request: Request) {
             <div style="background-color: #fef2f2; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
               <h2 style="margin: 0 0 16px 0; color: #111827;">Pickup Information</h2>
               <p style="margin: 4px 0; color: #6b7280;">Estimated Time: <span style="color: #111827; font-weight: 500;">15-20 minutes</span></p>
-              <p style="margin: 4px 0; color: #6b7280;">Location: <span style="color: #111827; font-weight: 500;">123 Food Street, City, State 12345</span></p>
+              <p style="margin: 4px 0; color: #6b7280;">Location: <span style="color: #111827; font-weight: 500;">${businessAddress}</span></p>
+              <p style="margin: 4px 0; color: #6b7280;">Phone: <span style="color: #111827; font-weight: 500;">${businessPhone}</span></p>
               ${order.paymentMethod === 'cash' ? `
                 <p style="margin: 16px 0 0 0; color: #dc2626; font-weight: 500;">
                   Please have cash ready for payment upon pickup.
@@ -112,8 +140,8 @@ export async function POST(request: Request) {
             </div>
 
             <div style="text-align: center; color: #6b7280; font-size: 14px; margin-top: 32px;">
-              <p style="margin: 4px 0;">Thank you for choosing Crazy Chicken!</p>
-              <p style="margin: 4px 0;">Questions? Contact us at support@crazychicken.us</p>
+              <p style="margin: 4px 0;">Thank you for choosing ${businessName}!</p>
+              <p style="margin: 4px 0;">Questions? Contact us at ${businessEmail}</p>
             </div>
           </div>
         </body>
@@ -122,9 +150,9 @@ export async function POST(request: Request) {
 
     try {
       const { data, error } = await resend.emails.send({
-        from: 'orders@crazychicken.us',
+        from: `orders@${businessEmail.split('@')[1] || 'crazychicken.us'}`,
         to: customer.email,
-        subject: `Crazy Chicken Order Confirmation #${order.id}`,
+        subject: `${businessName} Order Confirmation #${order.id}`,
         html: emailHtml
       })
 

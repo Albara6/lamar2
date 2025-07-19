@@ -24,6 +24,9 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true)
   const [showCart, setShowCart] = useState(false)
 
+  // Get business name from settings or use default
+  const displayName = menuData?.businessSettings?.name || 'CRAZY CHICKEN'
+
   useEffect(() => {
     fetchMenu()
     
@@ -70,9 +73,10 @@ export default function MenuPage() {
     const defaultSize = item.menu_item_sizes?.find(size => size.is_default) || item.menu_item_sizes?.[0]
     setSelectedSize(defaultSize || null)
     
-    // Set default modifiers
+    // Set default modifiers (only for applicable groups based on selected size)
     const defaultModifiers: ModifierItem[] = []
-    item.menu_item_modifier_groups?.forEach(group => {
+    const applicableGroups = getApplicableModifierGroups(item, defaultSize || null)
+    applicableGroups.forEach(group => {
       group.modifier_groups.modifier_items?.forEach(modifier => {
         if (modifier.is_default) {
           defaultModifiers.push(modifier)
@@ -97,7 +101,7 @@ export default function MenuPage() {
 
     const basePrice = selectedItem.base_price + (selectedSize?.price_modifier || 0)
     const modifierPrice = selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)
-    const totalPrice = (basePrice + modifierPrice) * quantity
+    const totalPrice = basePrice + modifierPrice
 
     // Create a clean version of the menu item with only the necessary data
     const cleanMenuItem: CartMenuItem = {
@@ -126,7 +130,7 @@ export default function MenuPage() {
       menuItem: cleanMenuItem,
       selectedSize: cleanSize,
       selectedModifiers: cleanModifiers,
-      quantity,
+      quantity: 1,
       totalPrice,
       specialInstructions: specialInstructions.trim() || undefined
     }
@@ -169,8 +173,9 @@ export default function MenuPage() {
   const canAddToCart = () => {
     if (!selectedItem) return false
     
-    // Check required modifier groups
-    for (const group of selectedItem.menu_item_modifier_groups || []) {
+    // Check required modifier groups (only applicable ones based on selected size)
+    const applicableGroups = getApplicableModifierGroups(selectedItem, selectedSize)
+    for (const group of applicableGroups) {
       if (group.modifier_groups.is_required) {
         const selectedFromGroup = selectedModifiers.filter(mod => 
           group.modifier_groups.modifier_items.some(item => item.id === mod.id)
@@ -181,6 +186,40 @@ export default function MenuPage() {
       }
     }
     return true
+  }
+
+  const getApplicableModifierGroups = (
+    item: MenuItem | null,
+    size: MenuItemSize | null
+  ) => {
+    if (!item) return [] as MenuItemModifierGroup[]
+
+    // Step 1: filter groups based on size selection
+    const filtered = (item.menu_item_modifier_groups || []).filter(group => {
+      const groupSizeId = group.menu_item_size_id || null
+
+      // Always include groups not tied to any size (universal)
+      if (!groupSizeId) return true
+
+      // If a size is selected include only matching groups
+      if (size) {
+        return groupSizeId === size.id
+      }
+
+      // No size selected yet → exclude size-specific groups
+      return false
+    })
+
+    // Step 2: deduplicate by modifier_group_id in case the same group is associated multiple times
+    const seen = new Set<string>()
+    const unique: MenuItemModifierGroup[] = []
+    for (const g of filtered) {
+      if (!seen.has(g.modifier_group_id)) {
+        seen.add(g.modifier_group_id)
+        unique.push(g)
+      }
+    }
+    return unique
   }
 
   if (loading) {
@@ -232,12 +271,22 @@ export default function MenuPage() {
             >
               <ArrowLeft size={24} />
             </button>
-            <div style={{
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              color: 'white'
-            }}>
-              🍗 CRAZY CHICKEN MENU
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <img 
+                src="/business_logo.PNG" 
+                alt={displayName}
+                style={{
+                  height: '2rem',
+                  width: 'auto'
+                }}
+              />
+              <div style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: 'white'
+              }}>
+                🍗 {displayName} MENU
+              </div>
             </div>
           </div>
           
@@ -488,7 +537,8 @@ export default function MenuPage() {
                   <h3 style={{ 
                     fontWeight: 'bold', 
                     fontSize: '1.125rem', 
-                    marginBottom: '0.75rem' 
+                    marginBottom: '0.75rem',
+                    color: '#374151'
                   }}>
                     Choose Size
                   </h3>
@@ -496,7 +546,20 @@ export default function MenuPage() {
                     {selectedItem.menu_item_sizes.map(size => (
                       <button
                         key={size.id}
-                        onClick={() => setSelectedSize(size)}
+                        onClick={() => {
+                          setSelectedSize(size)
+                          // Clear modifiers when size changes and reset to applicable defaults
+                          const applicableGroups = getApplicableModifierGroups(selectedItem, size)
+                          const newDefaultModifiers: ModifierItem[] = []
+                          applicableGroups.forEach(group => {
+                            group.modifier_groups.modifier_items?.forEach(modifier => {
+                              if (modifier.is_default) {
+                                newDefaultModifiers.push(modifier)
+                              }
+                            })
+                          })
+                          setSelectedModifiers(newDefaultModifiers)
+                        }}
                         style={{
                           width: '100%',
                           padding: '0.75rem',
@@ -512,7 +575,7 @@ export default function MenuPage() {
                           justifyContent: 'space-between', 
                           alignItems: 'center' 
                         }}>
-                          <span style={{ fontWeight: '500' }}>{size.name}</span>
+                          <span style={{ fontWeight: '500', color: '#374151' }}>{size.name}</span>
                           <span style={{ 
                             color: '#dc2626', 
                             fontWeight: 'bold' 
@@ -527,12 +590,13 @@ export default function MenuPage() {
               )}
 
               {/* Modifiers */}
-              {selectedItem.menu_item_modifier_groups?.map(group => (
+              {getApplicableModifierGroups(selectedItem, selectedSize).map(group => (
                 <div key={group.modifier_groups.id} style={{ marginBottom: '1.5rem' }}>
                   <h3 style={{ 
                     fontWeight: 'bold', 
                     fontSize: '1.125rem', 
-                    marginBottom: '0.75rem' 
+                    marginBottom: '0.75rem',
+                    color: '#374151'
                   }}>
                     {group.modifier_groups.name}
                     {group.modifier_groups.is_required && (
@@ -559,7 +623,7 @@ export default function MenuPage() {
                           justifyContent: 'space-between', 
                           alignItems: 'center' 
                         }}>
-                          <span style={{ fontWeight: '500' }}>{modifier.name}</span>
+                          <span style={{ fontWeight: '500', color: '#374151' }}>{modifier.name}</span>
                           <span style={{ 
                             color: '#dc2626', 
                             fontWeight: 'bold' 
@@ -578,7 +642,8 @@ export default function MenuPage() {
                 <h3 style={{ 
                   fontWeight: 'bold', 
                   fontSize: '1.125rem', 
-                  marginBottom: '0.75rem' 
+                  marginBottom: '0.75rem',
+                  color: '#374151'
                 }}>
                   Special Instructions
                 </h3>
@@ -598,50 +663,7 @@ export default function MenuPage() {
                 />
               </div>
 
-              {/* Quantity */}
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ 
-                  fontWeight: 'bold', 
-                  fontSize: '1.125rem', 
-                  marginBottom: '0.75rem' 
-                }}>
-                  Quantity
-                </h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    style={{
-                      padding: '0.5rem',
-                      border: '2px solid #e5e7eb',
-                      borderRadius: '0.5rem',
-                      background: 'white',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Minus size={20} />
-                  </button>
-                  <span style={{ 
-                    fontSize: '1.25rem', 
-                    fontWeight: 'bold', 
-                    width: '2rem', 
-                    textAlign: 'center' 
-                  }}>
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    style={{
-                      padding: '0.5rem',
-                      border: '2px solid #e5e7eb',
-                      borderRadius: '0.5rem',
-                      background: 'white',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
-              </div>
+
 
               {/* Add to Cart Button */}
               <button
@@ -659,8 +681,8 @@ export default function MenuPage() {
                   cursor: canAddToCart() ? 'pointer' : 'not-allowed'
                 }}
               >
-                Add to Cart - ${((selectedItem.base_price + (selectedSize?.price_modifier || 0) + 
-                  selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)) * quantity).toFixed(2)}
+                Add to Cart - ${(selectedItem.base_price + (selectedSize?.price_modifier || 0) + 
+                  selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)).toFixed(2)}
               </button>
             </div>
           </div>

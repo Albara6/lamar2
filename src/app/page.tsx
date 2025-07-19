@@ -1,4 +1,52 @@
-export default function HomePage() {
+'use client'
+
+import React, { useState, useEffect } from 'react'
+
+interface BusinessSettings {
+  id: string
+  name: string
+  phone: string
+  email: string
+  address: string
+  hours: any
+  is_accepting_orders: boolean
+  banner_enabled: boolean
+  banner_text: string
+}
+
+export default function HomePage(): React.ReactElement {
+  const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null)
+
+  useEffect(() => {
+    fetchBusinessSettings()
+  }, [])
+
+  const fetchBusinessSettings = async () => {
+    try {
+      const response = await fetch('/api/admin/business-settings')
+      const data = await response.json()
+      setBusinessSettings(data.businessSettings)
+    } catch (error) {
+      console.error('Failed to fetch business settings:', error)
+    }
+  }
+
+  const formatHours = (hours: any) => {
+    if (!hours || !hours.monday) return 'Hours vary - please call'
+    
+    // For simplicity, show Monday hours as general hours
+    // You could enhance this to show different hours per day
+    const mondayHours = hours.monday
+    if (mondayHours.closed) return 'Closed today'
+    
+    return `Open Daily ${mondayHours.open} - ${mondayHours.close}`
+  }
+
+  // Default values while loading
+  const displayName = businessSettings?.name || 'CRAZY CHICKEN'
+  const displayPhone = businessSettings?.phone || '(555) 123-CRAZY'
+  const displayHours = businessSettings?.hours ? formatHours(businessSettings.hours) : 'Open Daily 11AM - 11PM'
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -21,12 +69,22 @@ export default function HomePage() {
           alignItems: 'center',
           height: '4rem'
         }}>
-          <div style={{
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            color: 'white'
-          }}>
-            🍗 CRAZY CHICKEN
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <img 
+              src="/business_logo.PNG" 
+              alt={displayName}
+              style={{
+                height: '2.5rem',
+                width: 'auto'
+              }}
+            />
+            <div style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              color: 'white'
+            }}>
+              🍗 {displayName}
+            </div>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -66,18 +124,34 @@ export default function HomePage() {
         background: 'linear-gradient(90deg, #dc2626 0%, #b91c1c 100%)',
         color: 'white',
         padding: '5rem 1rem',
-        textAlign: 'center'
+        textAlign: 'center',
+        flex: 1
       }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
-          <h1 style={{
-            fontSize: '4rem',
-            fontWeight: 'bold',
-            marginBottom: '1.5rem',
-            lineHeight: '1.1'
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center',
+            marginBottom: '2rem'
           }}>
-            GET CRAZY WITH
-            <div style={{ color: '#fbbf24' }}>FLAVOR!</div>
-          </h1>
+            <img 
+              src="/business_logo.PNG" 
+              alt={displayName}
+              style={{
+                height: '8rem',
+                width: 'auto',
+                marginBottom: '1rem'
+              }}
+            />
+            <h1 style={{
+              fontSize: '4rem',
+              fontWeight: 'bold',
+              lineHeight: '1.1'
+            }}>
+              GET CRAZY WITH
+              <div style={{ color: '#fbbf24' }}>FLAVOR!</div>
+            </h1>
+          </div>
           <p style={{
             fontSize: '1.5rem',
             marginBottom: '2rem',
@@ -136,146 +210,17 @@ export default function HomePage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#fbbf24', fontSize: '1.25rem' }}>📞</span>
-            <span>(555) 123-CRAZY</span>
+            <span>{displayPhone}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#fbbf24', fontSize: '1.25rem' }}>🕐</span>
-            <span>Open Daily 11AM - 11PM</span>
+            <span>{displayHours}</span>
           </div>
           <div style={{ color: '#fbbf24', fontWeight: 'bold' }}>
             🚫 PICKUP ONLY - NO DELIVERY
           </div>
         </div>
       </section>
-
-      {/* Categories */}
-      <section style={{ padding: '4rem 1rem' }}>
-        <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
-          <h2 style={{
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            color: '#374151',
-            marginBottom: '3rem'
-          }}>
-            CHOOSE YOUR CRAZY
-          </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-            gap: '2rem'
-          }}>
-            {/* Burgers */}
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden',
-              cursor: 'pointer'
-            }}>
-              <div style={{
-                height: '12rem',
-                background: 'linear-gradient(135deg, #f87171 0%, #dc2626 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{ fontSize: '4rem' }}>🍔</div>
-              </div>
-              <div style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#374151', marginBottom: '0.5rem' }}>
-                  CRAZY BURGERS
-                </h3>
-                <p style={{ color: '#6b7280' }}>
-                  Juicy, stacked high, and absolutely insane!
-                </p>
-              </div>
-            </div>
-
-            {/* Chicken */}
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden',
-              cursor: 'pointer'
-            }}>
-              <div style={{
-                height: '12rem',
-                background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{ fontSize: '4rem' }}>🍗</div>
-              </div>
-              <div style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#374151', marginBottom: '0.5rem' }}>
-                  CRISPY CHICKEN
-                </h3>
-                <p style={{ color: '#6b7280' }}>
-                  Perfectly seasoned and crazily crispy!
-                </p>
-              </div>
-            </div>
-
-            {/* Phillys */}
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: '0.5rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-              overflow: 'hidden',
-              cursor: 'pointer'
-            }}>
-              <div style={{
-                height: '12rem',
-                background: 'linear-gradient(135deg, #34d399 0%, #059669 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <div style={{ fontSize: '4rem' }}>🥪</div>
-              </div>
-              <div style={{ padding: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#374151', marginBottom: '0.5rem' }}>
-                  PHILLY CHEESESTEAKS
-                </h3>
-                <p style={{ color: '#6b7280' }}>
-                  Authentic flavors that drive you crazy!
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer style={{
-        backgroundColor: '#374151',
-        color: 'white',
-        padding: '2rem 1rem',
-        textAlign: 'center'
-      }}>
-        <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
-          <div style={{
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem'
-          }}>
-            🍗 CRAZY CHICKEN
-          </div>
-          <p style={{ color: '#9ca3af' }}>
-            Where Every Bite is Insanely Delicious!
-          </p>
-          <div style={{
-            marginTop: '1rem',
-            fontSize: '0.875rem',
-            color: '#6b7280'
-          }}>
-            © 2024 Crazy Chicken. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
-  );
-} 
+  )
+}

@@ -10,7 +10,6 @@ export async function GET() {
     const { data: businessSettings, error } = await supabaseAdmin
       .from('business_settings')
       .select('*')
-      .limit(1)
       .single()
 
     if (error) {
@@ -29,7 +28,18 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json()
     
-    // Update business settings - since there should only be one record, update the first one
+    // First get the existing business settings record to get the ID
+    const { data: existingSettings, error: fetchError } = await supabaseAdmin
+      .from('business_settings')
+      .select('id')
+      .single()
+
+    if (fetchError) {
+      console.error('Failed to fetch existing business settings:', fetchError)
+      return NextResponse.json({ error: 'Failed to fetch existing business settings' }, { status: 500 })
+    }
+
+    // Update business settings using the specific ID
     const { data: businessSettings, error } = await supabaseAdmin
       .from('business_settings')
       .update({
@@ -42,7 +52,7 @@ export async function PUT(request: Request) {
         banner_enabled: body.banner_enabled,
         banner_text: body.banner_text
       })
-      .limit(1)
+      .eq('id', existingSettings.id)
       .select()
       .single()
 
