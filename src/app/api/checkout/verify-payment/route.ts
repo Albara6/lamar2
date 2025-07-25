@@ -39,7 +39,8 @@ export async function POST(request: Request) {
       .from('orders')
       .update({
         payment_status: 'paid',
-        stripe_payment_intent_id: session.payment_intent as string
+        stripe_payment_intent_id: session.payment_intent as string,
+        order_status: 'pending'
       })
       .eq('id', orderId)
       .select('*')

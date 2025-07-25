@@ -6,6 +6,9 @@ import { useCartStore } from '@/store/cartStore'
 import { CheckoutData, CustomerInfo } from '@/types'
 import { Phone, User, Mail, CreditCard, DollarSign, Check, ArrowLeft, Loader2 } from 'lucide-react'
 
+// --- Constants ---
+const TAX_RATE = 0.11375 // 11.375%
+
 interface PhoneVerificationStep {
   phoneNumber: string
   verificationCode: string
@@ -62,6 +65,11 @@ export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   
   const [orderId, setOrderId] = useState<string>('')
+
+  // Derived pricing (re-evaluated on every render)
+  const subtotal = cart.total
+  const tax = parseFloat((subtotal * TAX_RATE).toFixed(2))
+  const totalWithTax = parseFloat((subtotal + tax).toFixed(2))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>('')
   const [isHydrated, setIsHydrated] = useState(false)
@@ -207,7 +215,7 @@ export default function CheckoutPage() {
         },
         paymentMethod: paymentStep.method,
         items: cart.items,
-        total: cart.total
+        total: totalWithTax
       }
 
       // DEBUG: Log outgoing order data
@@ -515,46 +523,7 @@ export default function CheckoutPage() {
                 We'll send you a verification code to confirm your order and save your preferences for next time.
               </p>
 
-              {/* DEBUG SKIP BUTTON - REMOVE BEFORE PRODUCTION */}
-              <div style={{
-                backgroundColor: '#fef3c7',
-                border: '2px solid #f59e0b',
-                borderRadius: '0.5rem',
-                padding: '1rem',
-                marginBottom: '1.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '1.2rem' }}>🚧</span>
-                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>DEBUG MODE</span>
-                </div>
-                <p style={{ fontSize: '0.875rem', color: '#92400e', marginBottom: '1rem' }}>
-                  Skip phone verification for testing purposes
-                </p>
-                <button
-                  onClick={() => {
-                    setPhoneStep(prev => ({ 
-                      ...prev, 
-                      phoneNumber: '(555) 123-4567',
-                      verificationCode: '123456',
-                      isCodeSent: true,
-                      isVerified: true 
-                    }))
-                    setCurrentStep('customer')
-                  }}
-                  style={{
-                    backgroundColor: '#f59e0b',
-                    color: 'white',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.375rem',
-                    border: 'none',
-                    fontSize: '0.875rem',
-                    fontWeight: 'bold',
-                    cursor: 'pointer'
-                  }}
-                >
-                  🚀 Skip Verification (DEBUG)
-                </button>
-              </div>
+              
 
               {!phoneStep.isCodeSent ? (
                 <div>
@@ -863,8 +832,20 @@ export default function CheckoutPage() {
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#374151' }}>Total:</span>
-                  <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#dc2626' }}>${cart.total.toFixed(2)}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ color: '#6b7280' }}>Subtotal:</span>
+                      <span style={{ fontWeight: 'bold' }}>${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                      <span style={{ color: '#6b7280' }}>Tax (11.375%):</span>
+                      <span style={{ fontWeight: 'bold' }}>${tax.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#374151' }}>Total:</span>
+                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#dc2626', marginLeft: '0.5rem' }}>${totalWithTax.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -993,8 +974,8 @@ export default function CheckoutPage() {
                 </h3>
                 <p style={{ color: '#6b7280', margin: 0, fontSize: '0.875rem' }}>
                   {paymentStep.method === 'cash' 
-                    ? 'Please have your cash ready when you pick up your order. Total: $' + cart.total.toFixed(2)
-                    : 'Your payment has been processed securely. Total: $' + cart.total.toFixed(2)
+                    ? `Please have your cash ready when you pick up your order. Total: $${totalWithTax.toFixed(2)}`
+                    : `Your payment has been processed securely. Total: $${totalWithTax.toFixed(2)}`
                   }
                 </p>
               </div>

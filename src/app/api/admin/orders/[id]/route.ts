@@ -37,6 +37,21 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (updateData.payment_status) {
       mappedData.payment_status = updateData.payment_status
     }
+
+    // Prevent mistakenly marking cash orders as paid
+    // Fetch the current order to inspect payment_method
+    const { data: existingOrder } = await supabaseAdmin
+      .from('orders')
+      .select('payment_method, payment_status')
+      .eq('id', params.id)
+      .single()
+
+    if (existingOrder && existingOrder.payment_method === 'cash') {
+      // Ignore any attempt to set payment_status to 'paid'
+      if (mappedData.payment_status && mappedData.payment_status === 'paid') {
+        delete mappedData.payment_status
+      }
+    }
     if (updateData.notes !== undefined) {
       mappedData.special_instructions = updateData.notes
     }

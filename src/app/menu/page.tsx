@@ -6,16 +6,24 @@ import { useCartStore } from '@/store/cartStore'
 import { MenuItem, MenuItemSize, ModifierGroup, ModifierItem, MenuItemModifierGroup, CartItem, CartMenuItem, CartMenuItemSize, CartModifierItem } from '@/types'
 import { useRouter } from 'next/navigation'
 
+interface Category {
+  id: string
+  name: string
+  display_order: number
+}
+
 interface MenuData {
   menuItems: MenuItem[]
   businessSettings: any
+  categories: Category[]
 }
 
 export default function MenuPage() {
   const router = useRouter()
   const cart = useCartStore()
   const [menuData, setMenuData] = useState<MenuData | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
+  // default empty means no category selected yet
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null)
   const [selectedSize, setSelectedSize] = useState<MenuItemSize | null>(null)
   const [selectedModifiers, setSelectedModifiers] = useState<ModifierItem[]>([])
@@ -23,6 +31,13 @@ export default function MenuPage() {
   const [specialInstructions, setSpecialInstructions] = useState('')
   const [loading, setLoading] = useState(true)
   const [showCart, setShowCart] = useState(false)
+  const [isClosed, setIsClosed] = useState(false)
+
+  // New state to control whether we are viewing category list or items list
+  const [showCategoriesView, setShowCategoriesView] = useState(true)
+
+  // Wizard step index inside item modal (0 = size or first modifier group)
+  const [currentStep, setCurrentStep] = useState(0)
 
   // Get business name from settings or use default
   const displayName = menuData?.businessSettings?.name || 'CRAZY CHICKEN'
@@ -38,6 +53,66 @@ export default function MenuPage() {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    const evaluateClosed = () => {
+      if (!menuData?.businessSettings) {
+        setIsClosed(false)
+        return
+      }
+
+      const settings = menuData.businessSettings
+
+      // Immediate override: admin switched off accepting orders
+      if (settings.is_accepting_orders === false) {
+        setIsClosed(true)
+        return
+      }
+
+      // Fallback if hours are not configured
+      if (!settings.hours) {
+        setIsClosed(false)
+        return
+      }
+
+      const now = new Date()
+      const weekday = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+      const today = settings.hours[weekday]
+
+      // If day is explicitly marked closed, or data missing, mark closed
+      if (!today || today.closed) {
+        setIsClosed(true)
+        return
+      }
+
+      const [openHour, openMinute] = today.open.split(':').map((v: string) => parseInt(v, 10))
+      const [closeHour, closeMinute] = today.close.split(':').map((v: string) => parseInt(v, 10))
+
+      const openTime = new Date(now)
+      openTime.setHours(openHour, openMinute, 0, 0)
+
+      const closeTime = new Date(now)
+      closeTime.setHours(closeHour, closeMinute, 0, 0)
+
+      // If the closing time is earlier than the opening time, it means the business
+      // closes after midnight (e.g. 6 PM – 2 AM). In that case move closeTime to the
+      // next day so the range comparison works correctly.
+      if (closeTime <= openTime) {
+        closeTime.setDate(closeTime.getDate() + 1)
+      }
+
+      // Determine if we are within the open window
+      const isWithinHours = now >= openTime && now <= closeTime
+      setIsClosed(!isWithinHours)
+    }
+
+    // Run on initial data load & whenever menuData changes
+    evaluateClosed()
+
+    // Re-evaluate every minute so the banner updates automatically
+    const interval = setInterval(evaluateClosed, 60000)
+    return () => clearInterval(interval)
+  }, [menuData])
+
   const fetchMenu = async () => {
     try {
       // Add timestamp to prevent any caching
@@ -48,28 +123,48 @@ export default function MenuPage() {
           'Cache-Control': 'no-cache'
         }
       })
+      
+      if (!response.ok) {
+        throw new Error(`API responded with ${response.status}`)
+      }
+      
       const data = await response.json()
-      setMenuData(data)
+      
+      // Ensure data has required structure
+      const safeData = {
+        menuItems: data.menuItems || [],
+        businessSettings: data.businessSettings || { name: 'Crazy Chicken' },
+        categories: data.categories || []
+      }
+      
+      setMenuData(safeData)
       setLoading(false)
     } catch (error) {
       console.error('Failed to fetch menu:', error)
+      // Set fallback data so the app doesn't crash
+      setMenuData({
+        menuItems: [],
+        businessSettings: { name: 'Crazy Chicken' },
+        categories: []
+      })
       setLoading(false)
     }
   }
 
-  const categories = [
-    { id: 'all', name: 'All Items', emoji: '🍽️' },
-    { id: 'burgers', name: 'Crazy Burgers', emoji: '🍔' },
-    { id: 'chicken', name: 'Crispy Chicken', emoji: '🍗' },
-    { id: 'phillys', name: 'Philly Cheesesteaks', emoji: '🥪' }
-  ]
+  const categories = (menuData?.categories || []).map(cat => ({
+    id: cat.id,
+    name: cat.name,
+    image_url: (cat as any).image_url || null,
+    image_storage_url: (cat as any).image_storage_url || null
+  }))
 
-  const filteredItems = menuData?.menuItems.filter(item => 
-    selectedCategory === 'all' || item.category === selectedCategory
+  const filteredItems = (menuData?.menuItems || []).filter(item => 
+    !selectedCategory || item.category === selectedCategory
   ) || []
 
   const selectItem = (item: MenuItem) => {
     setSelectedItem(item)
+    setCurrentStep(0)
     const defaultSize = item.menu_item_sizes?.find(size => size.is_default) || item.menu_item_sizes?.[0]
     setSelectedSize(defaultSize || null)
     
@@ -94,9 +189,14 @@ export default function MenuPage() {
     setSelectedModifiers([])
     setQuantity(1)
     setSpecialInstructions('')
+    setCurrentStep(0)
   }
 
   const addToCart = () => {
+    if (isClosed) {
+      alert('Sorry, we are currently closed and not accepting orders at this time.')
+      return
+    }
     if (!selectedItem) return
 
     const basePrice = selectedItem.base_price + (selectedSize?.price_modifier || 0)
@@ -327,6 +427,19 @@ export default function MenuPage() {
       </nav>
 
       {/* Banner */}
+      {isClosed && (
+        <div style={{
+          backgroundColor: '#fbbf24',
+          color: '#b91c1c',
+          textAlign: 'center',
+          padding: '1rem',
+          fontWeight: 'bold',
+          fontSize: '1.25rem'
+        }}>
+          Sorry, we are currently closed.
+        </div>
+      )}
+
       {menuData?.businessSettings?.banner_enabled && (
         <div style={{
           backgroundColor: '#fbbf24',
@@ -340,6 +453,7 @@ export default function MenuPage() {
       )}
 
       {/* Categories */}
+      {!showCategoriesView && (
       <div style={{
         backgroundColor: 'white',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
@@ -350,10 +464,33 @@ export default function MenuPage() {
       }}>
         <div style={{ maxWidth: '80rem', margin: '0 auto' }}>
           <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto' }}>
+            <button
+              onClick={() => {
+                setShowCategoriesView(true)
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1rem',
+                borderRadius: '0.5rem',
+                fontWeight: '600',
+                whiteSpace: 'nowrap',
+                border: 'none',
+                cursor: 'pointer',
+                backgroundColor: '#f3f4f6',
+                color: '#374151'
+              }}
+            >
+              <ArrowLeft size={16} />
+              <span>Categories</span>
+            </button>
             {categories.map(category => (
               <button
                 key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
+                onClick={() => {
+                  setSelectedCategory(category.id)
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -368,31 +505,96 @@ export default function MenuPage() {
                   color: selectedCategory === category.id ? 'white' : '#374151'
                 }}
               >
-                <span>{category.emoji}</span>
+                {(category.image_storage_url || category.image_url) && (
+                  <img 
+                    src={category.image_storage_url || category.image_url} 
+                    alt={category.name}
+                    style={{
+                      height: '1.5rem',
+                      width: 'auto',
+                      borderRadius: '0.25rem'
+                    }}
+                  />
+                )}
                 <span>{category.name}</span>
               </button>
             ))}
           </div>
         </div>
-      </div>
+      </div>)}
 
       {/* Menu Items */}
       <div style={{ maxWidth: '80rem', margin: '0 auto', padding: '2rem 1rem' }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '1.5rem'
-        }}>
+        {showCategoriesView ? (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1.5rem'
+          }}>
+            {categories.map(cat => (
+              <div
+                key={cat.id}
+                onClick={() => {
+                  setSelectedCategory(cat.id)
+                  setShowCategoriesView(false)
+                }}
+                style={{
+                  backgroundColor: 'white',
+                  borderRadius: '0.5rem',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, box-shadow 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)'
+                  e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0px)'
+                  e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+                }}
+              >
+                <div style={{
+                  height: '10rem',
+                  backgroundColor: '#f3f4f6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {(cat.image_storage_url || cat.image_url) ? (
+                    <img src={cat.image_storage_url || cat.image_url} alt={cat.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <span style={{ fontSize: '3rem' }}>🍽️</span>
+                  )}
+                </div>
+                <div style={{ padding: '1rem', textAlign: 'center' }}>
+                  <h3 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#374151' }}>{cat.name}</h3>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gap: '1.5rem'
+          }}>
           {filteredItems.map(item => (
             <div
               key={item.id}
-              onClick={() => selectItem(item)}
+              onClick={() => {
+                if (!isClosed) {
+                  selectItem(item)
+                }
+              }}
               style={{
                 backgroundColor: 'white',
                 borderRadius: '0.5rem',
                 boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                 overflow: 'hidden',
-                cursor: 'pointer',
+                cursor: isClosed ? 'not-allowed' : 'pointer',
+                opacity: isClosed ? 0.6 : 1,
                 transition: 'transform 0.2s, box-shadow 0.2s'
               }}
               onMouseEnter={(e) => {
@@ -413,9 +615,9 @@ export default function MenuPage() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                {item.image_url ? (
+                {(item.image_storage_url || item.image_url) ? (
                   <img 
-                    src={item.image_url} 
+                    src={item.image_storage_url || item.image_url} 
                     alt={item.name}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
@@ -445,17 +647,8 @@ export default function MenuPage() {
                   {item.description}
                 </p>
                 <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center' 
+                  textAlign: 'center'
                 }}>
-                  <span style={{ 
-                    fontSize: '1.5rem', 
-                    fontWeight: 'bold', 
-                    color: '#dc2626' 
-                  }}>
-                    ${item.base_price.toFixed(2)}
-                  </span>
                   <button style={{
                     backgroundColor: '#dc2626',
                     color: 'white',
@@ -463,15 +656,17 @@ export default function MenuPage() {
                     borderRadius: '0.5rem',
                     border: 'none',
                     fontWeight: '600',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    width: '100%'
                   }}>
-                    Add to Cart
+                    Customize
                   </button>
                 </div>
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Item Detail Modal */}
@@ -501,13 +696,29 @@ export default function MenuPage() {
                 alignItems: 'flex-start', 
                 marginBottom: '1rem' 
               }}>
-                <h2 style={{ 
-                  fontSize: '1.5rem', 
-                  fontWeight: 'bold', 
-                  color: '#374151' 
-                }}>
-                  {selectedItem.name}
-                </h2>
+                <div style={{ flex: 1 }}>
+                  <h2 style={{ 
+                    fontSize: '1.5rem', 
+                    fontWeight: 'bold', 
+                    color: '#374151',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem'
+                  }}>
+                    {selectedItem.name}
+                    <span style={{
+                      fontSize: '1.25rem',
+                      color: '#dc2626',
+                      fontWeight: 'bold'
+                    }}>
+                      ${(
+                        selectedItem.base_price +
+                        (selectedSize?.price_modifier || 0) +
+                        selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)
+                      ).toFixed(2)}
+                    </span>
+                  </h2>
+                </div>
                 <button
                   onClick={closeModal}
                   style={{
@@ -531,159 +742,249 @@ export default function MenuPage() {
                 {selectedItem.description}
               </p>
 
-              {/* Size Selection */}
-              {selectedItem.menu_item_sizes && selectedItem.menu_item_sizes.length > 0 && (
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: '1.125rem', 
-                    marginBottom: '0.75rem',
-                    color: '#374151'
-                  }}>
-                    Choose Size
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {selectedItem.menu_item_sizes.map(size => (
-                      <button
-                        key={size.id}
-                        onClick={() => {
-                          setSelectedSize(size)
-                          // Clear modifiers when size changes and reset to applicable defaults
-                          const applicableGroups = getApplicableModifierGroups(selectedItem, size)
-                          const newDefaultModifiers: ModifierItem[] = []
-                          applicableGroups.forEach(group => {
-                            group.modifier_groups.modifier_items?.forEach(modifier => {
-                              if (modifier.is_default) {
-                                newDefaultModifiers.push(modifier)
-                              }
+              {/* Wizard Steps */}
+              {(() => {
+                if (!selectedItem) return null
+
+                const modifierGroups = getApplicableModifierGroups(selectedItem, selectedSize)
+                const hasSizeStep = selectedItem.menu_item_sizes && selectedItem.menu_item_sizes.length > 0
+                const sizeStepIndex = hasSizeStep ? 0 : -1
+                const instructionsStepIndex = (hasSizeStep ? 1 : 0) + modifierGroups.length
+
+                // Helper to render size step
+                const renderSizeStep = () => (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ 
+                      fontWeight: 'bold', 
+                      fontSize: '1.125rem', 
+                      marginBottom: '0.75rem',
+                      color: '#374151'
+                    }}>
+                      Choose Size
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {(selectedItem.menu_item_sizes || []).map(size => (
+                        <button
+                          key={size.id}
+                          onClick={() => {
+                            setSelectedSize(size)
+                            // Reset modifiers when size changes
+                            const applicableGroups = getApplicableModifierGroups(selectedItem, size)
+                            const newDefaultModifiers: ModifierItem[] = []
+                            applicableGroups.forEach(g => {
+                              g.modifier_groups.modifier_items?.forEach(mod => {
+                                if (mod.is_default) newDefaultModifiers.push(mod)
+                              })
                             })
-                          })
-                          setSelectedModifiers(newDefaultModifiers)
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          border: `2px solid ${selectedSize?.id === size.id ? '#dc2626' : '#e5e7eb'}`,
-                          backgroundColor: selectedSize?.id === size.id ? '#fef2f2' : 'white',
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center' 
-                        }}>
-                          <span style={{ fontWeight: '500', color: '#374151' }}>{size.name}</span>
-                          <span style={{ 
-                            color: '#dc2626', 
-                            fontWeight: 'bold' 
+                            setSelectedModifiers(newDefaultModifiers)
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.5rem',
+                            border: `2px solid ${selectedSize?.id === size.id ? '#dc2626' : '#e5e7eb'}`,
+                            backgroundColor: selectedSize?.id === size.id ? '#fef2f2' : 'white',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center' 
                           }}>
-                            {size.price_modifier > 0 ? `+$${size.price_modifier.toFixed(2)}` : 'Included'}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                            <span style={{ fontWeight: '500', color: '#374151' }}>{size.name}</span>
+                            <span style={{ 
+                              color: '#dc2626', 
+                              fontWeight: 'bold' 
+                            }}>
+                              {size.price_modifier > 0 ? `$${size.price_modifier.toFixed(2)}` : 'Included'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
 
-              {/* Modifiers */}
-              {getApplicableModifierGroups(selectedItem, selectedSize).map(group => (
-                <div key={group.modifier_groups.id} style={{ marginBottom: '1.5rem' }}>
-                  <h3 style={{ 
-                    fontWeight: 'bold', 
-                    fontSize: '1.125rem', 
-                    marginBottom: '0.75rem',
-                    color: '#374151'
-                  }}>
-                    {group.modifier_groups.name}
-                    {group.modifier_groups.is_required && (
-                      <span style={{ color: '#dc2626' }}> *</span>
-                    )}
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {group.modifier_groups.modifier_items?.map(modifier => (
+                // Helper to render modifier group step
+                const renderModifierStep = (group: typeof modifierGroups[0]) => (
+                  <div key={group.modifier_groups.id} style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ 
+                      fontWeight: 'bold', 
+                      fontSize: '1.125rem', 
+                      marginBottom: '0.75rem',
+                      color: '#374151'
+                    }}>
+                      {group.modifier_groups.name}
+                      {group.modifier_groups.is_required && <span style={{ color: '#dc2626' }}> *</span>}
+                    </h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {group.modifier_groups.modifier_items?.map(modifier => (
+                        <button
+                          key={modifier.id}
+                          onClick={() => toggleModifier(modifier, group.modifier_groups)}
+                          style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '0.5rem',
+                            border: `2px solid ${selectedModifiers.some(mod => mod.id === modifier.id) ? '#dc2626' : '#e5e7eb'}`,
+                            backgroundColor: selectedModifiers.some(mod => mod.id === modifier.id) ? '#fef2f2' : 'white',
+                            cursor: 'pointer',
+                            textAlign: 'left'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: '500', color: '#374151' }}>{modifier.name}</span>
+                            <span style={{ color: '#dc2626', fontWeight: 'bold' }}>
+                              {modifier.price > 0 ? `$${modifier.price.toFixed(2)}` : 'Free'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+
+                // Helper to render special instructions + summary step
+                const renderInstructionsStep = () => (
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ fontWeight: 'bold', fontSize: '1.125rem', marginBottom: '0.75rem', color: '#374151' }}>
+                      Special Instructions
+                    </h3>
+                    <textarea
+                      value={specialInstructions}
+                      onChange={(e) => setSpecialInstructions(e.target.value)}
+                      placeholder="Any special requests?"
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.875rem',
+                        resize: 'vertical',
+                        minHeight: '4rem'
+                      }}
+                    />
+                  </div>
+                )
+
+                // Decide what to render based on currentStep
+                if (currentStep === sizeStepIndex && hasSizeStep) {
+                  return renderSizeStep()
+                }
+
+                // Modifier group steps
+                const modifierStepStart = hasSizeStep ? 1 : 0
+                const modifierIndex = currentStep - modifierStepStart
+                if (modifierIndex >= 0 && modifierIndex < modifierGroups.length) {
+                  return renderModifierStep(modifierGroups[modifierIndex])
+                }
+
+                // Instructions (final) step
+                if (currentStep === instructionsStepIndex) {
+                  return renderInstructionsStep()
+                }
+
+                return null
+              })()}
+
+              {/* Wizard Navigation Buttons */}
+              {(() => {
+                if (!selectedItem) return null
+                const modifierGroups = getApplicableModifierGroups(selectedItem, selectedSize)
+                const hasSizeStep = selectedItem.menu_item_sizes && selectedItem.menu_item_sizes.length > 0
+                const totalSteps = (hasSizeStep ? 1 : 0) + modifierGroups.length + 1 // +1 for instructions
+
+                const atLastStep = currentStep >= totalSteps - 1
+
+                return (
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+                    {currentStep > 0 && (
                       <button
-                        key={modifier.id}
-                        onClick={() => toggleModifier(modifier, group.modifier_groups)}
-                        style={{
-                          width: '100%',
-                          padding: '0.75rem',
-                          borderRadius: '0.5rem',
-                          border: `2px solid ${selectedModifiers.some(mod => mod.id === modifier.id) ? '#dc2626' : '#e5e7eb'}`,
-                          backgroundColor: selectedModifiers.some(mod => mod.id === modifier.id) ? '#fef2f2' : 'white',
-                          cursor: 'pointer',
-                          textAlign: 'left'
-                        }}
+                        onClick={() => setCurrentStep(currentStep - 1)}
+                        style={{ flex: 1, backgroundColor: '#fbbf24', color: '#374151', padding: '0.75rem', borderRadius: '0.5rem', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
                       >
-                        <div style={{ 
-                          display: 'flex', 
-                          justifyContent: 'space-between', 
-                          alignItems: 'center' 
-                        }}>
-                          <span style={{ fontWeight: '500', color: '#374151' }}>{modifier.name}</span>
-                          <span style={{ 
-                            color: '#dc2626', 
-                            fontWeight: 'bold' 
-                          }}>
-                            {modifier.price > 0 ? `+$${modifier.price.toFixed(2)}` : 'Free'}
-                          </span>
-                        </div>
+                        Back
                       </button>
-                    ))}
+                    )}
+                    {!atLastStep && (() => {
+                      // Determine if Next should be disabled (required modifier not selected)
+                      let nextDisabled = false
+
+                      if (!selectedItem) nextDisabled = false
+                      else {
+                        const hasSizeStep = selectedItem.menu_item_sizes && selectedItem.menu_item_sizes.length > 0
+                        const modifierGroups = getApplicableModifierGroups(selectedItem, selectedSize)
+                        const modifierStepStart = hasSizeStep ? 1 : 0
+                        const modifierIndex = currentStep - modifierStepStart
+
+                        if (modifierIndex >= 0 && modifierIndex < modifierGroups.length) {
+                          const group = modifierGroups[modifierIndex].modifier_groups
+                          if (group.is_required && group.min_selections > 0) {
+                            const selectedCount = selectedModifiers.filter(mod =>
+                              group.modifier_items?.some(item => item.id === mod.id)
+                            ).length
+                            if (selectedCount < group.min_selections) {
+                              nextDisabled = true
+                            }
+                          }
+                        }
+                      }
+
+                      return (
+                        <button
+                          onClick={() => !nextDisabled && setCurrentStep(currentStep + 1)}
+                          disabled={nextDisabled}
+                          style={{
+                            flex: 1,
+                            backgroundColor: nextDisabled ? '#9ca3af' : '#dc2626',
+                            color: 'white',
+                            padding: '0.75rem',
+                            borderRadius: '0.5rem',
+                            fontWeight: 'bold',
+                            border: 'none',
+                            cursor: nextDisabled ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Next
+                        </button>
+                      )
+                    })()}
                   </div>
-                </div>
-              ))}
+                )
+              })()}
 
-              {/* Special Instructions */}
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ 
-                  fontWeight: 'bold', 
-                  fontSize: '1.125rem', 
-                  marginBottom: '0.75rem',
-                  color: '#374151'
-                }}>
-                  Special Instructions
-                </h3>
-                <textarea
-                  value={specialInstructions}
-                  onChange={(e) => setSpecialInstructions(e.target.value)}
-                  placeholder="Any special requests?"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '0.5rem',
-                    fontSize: '0.875rem',
-                    resize: 'vertical',
-                    minHeight: '4rem'
-                  }}
-                />
-              </div>
+              {/* Add to Cart Button (only show on final step) */}
+              {(() => {
+                if (!selectedItem) return null
+                const modifierGroups = getApplicableModifierGroups(selectedItem, selectedSize)
+                const hasSizeStep = selectedItem.menu_item_sizes && selectedItem.menu_item_sizes.length > 0
+                const totalSteps = (hasSizeStep ? 1 : 0) + modifierGroups.length + 1
+                const atLastStep = currentStep >= totalSteps - 1
 
+                if (!atLastStep) return null
 
-
-              {/* Add to Cart Button */}
-              <button
-                onClick={addToCart}
-                disabled={!canAddToCart()}
-                style={{
-                  width: '100%',
-                  backgroundColor: canAddToCart() ? '#dc2626' : '#9ca3af',
-                  color: 'white',
-                  padding: '1rem',
-                  borderRadius: '0.5rem',
-                  fontWeight: 'bold',
-                  fontSize: '1.125rem',
-                  border: 'none',
-                  cursor: canAddToCart() ? 'pointer' : 'not-allowed'
-                }}
-              >
-                Add to Cart - ${(selectedItem.base_price + (selectedSize?.price_modifier || 0) + 
-                  selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)).toFixed(2)}
-              </button>
+                return (
+                  <button
+                    onClick={addToCart}
+                    disabled={!canAddToCart()}
+                    style={{
+                      width: '100%',
+                      backgroundColor: canAddToCart() ? '#dc2626' : '#9ca3af',
+                      color: 'white',
+                      padding: '1rem',
+                      borderRadius: '0.5rem',
+                      fontWeight: 'bold',
+                      fontSize: '1.125rem',
+                      border: 'none',
+                      cursor: canAddToCart() ? 'pointer' : 'not-allowed'
+                    }}
+                  >
+                    Add to Cart - ${(selectedItem.base_price + (selectedSize?.price_modifier || 0) + selectedModifiers.reduce((sum, mod) => sum + mod.price, 0)).toFixed(2)}
+                  </button>
+                )
+              })()}
             </div>
           </div>
         </div>

@@ -16,6 +16,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         base_price: body.price, // map price to base_price
         category: body.category_id, // map category_id to category
         image_url: body.image_url,
+        image_storage_url: body.image_storage_url, // new field for Supabase Storage URLs
         is_available: body.is_available,
         sort_order: body.display_order // map display_order to sort_order
       })
@@ -35,6 +36,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       description: menuItem.description,
       category_id: menuItem.category,
       image_url: menuItem.image_url,
+      image_storage_url: menuItem.image_storage_url, // new field for optimized images
       price: menuItem.base_price,
       is_available: menuItem.is_available,
       display_order: menuItem.sort_order

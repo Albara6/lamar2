@@ -5,6 +5,7 @@ export interface MenuItem {
   description?: string
   category: string
   image_url?: string
+  image_storage_url?: string // New field for Supabase Storage URLs
   base_price: number
   is_available: boolean
   sort_order: number
@@ -69,7 +70,7 @@ export interface Order {
   total_amount: number
   payment_method: 'online' | 'cash'
   payment_status: 'pending' | 'paid' | 'failed'
-  order_status: 'pending' | 'accepted' | 'rejected' | 'ready' | 'completed'
+  order_status: 'initiated' | 'pending' | 'accepted' | 'rejected' | 'ready' | 'completed'
   rejection_reason?: string
   phone_verified: boolean
   customer_name: string

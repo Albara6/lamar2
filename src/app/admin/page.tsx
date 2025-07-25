@@ -10,6 +10,7 @@ interface MenuItem {
   description: string
   category_id: string
   image_url?: string
+  image_storage_url?: string // New field for Supabase Storage URLs
   price: number
   is_available: boolean
   display_order: number
@@ -101,6 +102,8 @@ interface Category {
   id: string
   name: string
   display_order: number
+  image_url?: string
+  image_storage_url?: string // New field for Supabase Storage URLs
 }
 
 export default function AdminPage() {
@@ -116,6 +119,9 @@ export default function AdminPage() {
     'Kitchen Closed',
     'Out of items ordered'
   ]
+  
+  // Days of week helper for business hours UI
+  const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
   
   // Data states
   const [menuItems, setMenuItems] = useState<MenuItem[]>([])
@@ -138,7 +144,8 @@ export default function AdminPage() {
     price: 0,
     is_available: true,
     display_order: 0,
-    image_url: ''
+    image_url: '',
+    image_storage_url: '' // New field for Supabase Storage URLs
   })
   
   const [modifierGroupForm, setModifierGroupForm] = useState({
@@ -160,73 +167,28 @@ export default function AdminPage() {
   // Initialize audio on component mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Create audio element with inline base64 audio data
-      const audio = new Audio('data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA/+M4wAAAAAAAAAAAAEluZm8AAAAPAAAAAwAAAbsAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/jOMwAAAAAAAAAAAAASW5mbwAAAA8AAAADAABuwABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV')
-      audio.id = 'notificationSound'
-      audio.loop = true
-      audio.volume = 0.7
+      audioRef.current = new Audio('/notification.mp3')
+      // Repeat the alert until every pending order has been actioned
+      audioRef.current.loop = true
+      audioRef.current.volume = 0.7
       
       // Handle audio loading errors gracefully
-      audio.addEventListener('error', (e) => {
-        console.error('Audio error:', e)
+      audioRef.current.addEventListener('error', () => {
         console.log('Notification sound file not found - sound alerts disabled')
         audioRef.current = null
       })
-
-      // Handle successful load
-      audio.addEventListener('canplaythrough', () => {
-        console.log('Audio file loaded successfully')
-      })
-
-      audioRef.current = audio
-    }
-
-    // Cleanup on unmount
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause()
-        audioRef.current = null
-      }
     }
   }, [])
 
   // Play notification sound (with fallback)
   const playNotificationSound = () => {
     if (audioRef.current) {
-      try {
-        if (isPlayingSound) {
-          // Try to play the sound
-          audioRef.current.play().catch(error => {
-            console.error('Audio play failed:', error)
-            // Request permission and retry if needed
-            if (error.name === 'NotAllowedError') {
-              // Try to request user interaction first
-              const userInteraction = window.confirm('Would you like to enable sound notifications for new orders?')
-              if (userInteraction) {
-                audioRef.current?.play().catch(e => {
-                  console.error('Audio retry failed:', e)
-                  // Fall back to browser notifications
-                  if ('Notification' in window) {
-                    Notification.requestPermission().then(permission => {
-                      if (permission === 'granted') {
-                        new Notification('New Order!', {
-                          body: 'New order received in admin panel',
-                          icon: '/favicon.ico'
-                        })
-                      }
-                    })
-                  }
-                })
-              }
-            }
-          })
-        } else {
-          audioRef.current.pause()
-          audioRef.current.currentTime = 0
-        }
-      } catch (error) {
-        console.error('Audio playback error:', error)
-        // Fallback to browser notification
+      // Ensure looping is enabled every time just in case
+      audioRef.current.loop = true
+      audioRef.current.currentTime = 0
+      audioRef.current.play().catch(error => {
+        console.log('Audio play failed:', error)
+        // Fallback: Use browser notification API or console log
         if ('Notification' in window && Notification.permission === 'granted') {
           new Notification('New Order!', {
             body: 'New order received in admin panel',
@@ -235,14 +197,10 @@ export default function AdminPage() {
         } else {
           console.log('🔔 NEW ORDER ALERT! Check admin panel.')
         }
-      }
+      })
     } else {
       // Silent fallback when no audio file
       console.log('🔔 NEW ORDER ALERT! (Sound disabled - add notification.mp3)')
-      // Try to request notification permission as fallback
-      if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission()
-      }
     }
   }
 
@@ -265,29 +223,27 @@ export default function AdminPage() {
     )
     
     if (newOrders.length > 0) {
-      setIsPlayingSound(true)
-      // Try to play sound immediately when orders are detected
-      if (audioRef.current) {
-        audioRef.current.play().catch(error => {
-          console.error('Failed to play sound:', error)
-          // Request user interaction if needed
-          if (error.name === 'NotAllowedError') {
-            const userInteraction = window.confirm('Would you like to enable sound notifications for new orders?')
-            if (userInteraction) {
-              audioRef.current?.play().catch(e => console.error('Retry failed:', e))
-            }
-          }
-        })
+      if (!isPlayingSound) {
+        setIsPlayingSound(true)
+        playNotificationSound()
       }
     } else {
-      setIsPlayingSound(false)
-      // Stop sound when no pending orders
+      if (isPlayingSound) {
+        setIsPlayingSound(false)
+      }
+      // Pause any playing audio when there are no pending orders
       if (audioRef.current) {
         audioRef.current.pause()
-        audioRef.current.currentTime = 0
       }
     }
-  }, [orders.length]) // Only depend on orders changing
+  }, [orders, isPlayingSound]) // Re-run whenever order list updates
+
+  // Stop audio when we explicitly update isPlayingSound to false elsewhere
+  useEffect(() => {
+    if (!isPlayingSound && audioRef.current) {
+      audioRef.current.pause()
+    }
+  }, [isPlayingSound])
 
   useEffect(() => {
     if (authenticated) {
@@ -388,10 +344,8 @@ export default function AdminPage() {
   // Accept order - change to accepted status and auto-print receipt
   const handleAccept = async (order: Order) => {
     try {
-      // For cash orders, also mark payment as paid when accepted
-      const updateData = order.payment_method === 'cash' 
-        ? { status: 'accepted', payment_status: 'paid' }
-        : { status: 'accepted' }
+      // Accept order without altering payment_status so unpaid cash orders remain "NOT PAID"
+      const updateData = { status: 'accepted' }
 
       const response = await fetch(`/api/admin/orders/${order.id}`, {
         method: 'PUT',
@@ -418,16 +372,25 @@ export default function AdminPage() {
     const win = window.open('', '_blank', 'width=400,height=600')
     if (!win) return
     
+    const subtotal = (order.order_items || []).reduce((sum, itm) => sum + (itm.total_price ?? 0), 0)
+    const total = order.total ?? 0
+    const tax = Math.max(total - subtotal, 0)
+    
     const receiptHTML = `
       <html>
         <head>
           <title>Receipt - Order #${order.id.slice(-8)}</title>
           <style>
-            body { font-family: 'Courier New', monospace; font-size: 12px; margin: 20px; }
-            .header { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
-            .order-details { margin: 20px 0; }
-            .item { margin: 5px 0; display: flex; justify-content: space-between; }
-            .total { border-top: 1px solid #000; padding-top: 10px; font-weight: bold; }
+            /* Thermal printer-friendly styling */
+            @page { size: 80mm auto; margin: 0mm; }
+            @media print {
+              body { width: 80mm; margin: 0; }
+            }
+            body { font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold; margin: 0; padding: 4mm; }
+            .header { text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; }
+            .order-details { margin: 10px 0; }
+            .item { margin: 4px 0; display: flex; justify-content: space-between; }
+            .total { border-top: 1px dashed #000; padding-top: 6px; font-weight: bold; }
           </style>
         </head>
         <body>
@@ -439,7 +402,11 @@ export default function AdminPage() {
           <div class="order-details">
             <p><strong>Customer:</strong> ${order.customer_name}</p>
             <p><strong>Phone:</strong> ${order.customer_phone}</p>
-            <p><strong>Payment:</strong> ${order.payment_method.toUpperCase()}</p>
+            <p>
+              <strong>Payment:</strong> ${order.payment_method === 'cash' ? 
+                `CASH - ${order.payment_status.toUpperCase() === 'PAID' ? 'PAID ✓' : 'NOT PAID ✗'}` : 
+                `${order.payment_method.toUpperCase()} - ${order.payment_status.toUpperCase()}`}
+            </p>
             ${order.notes ? `<p><strong>Notes:</strong> ${order.notes}</p>` : ''}
           </div>
           <div class="items">
@@ -454,13 +421,21 @@ export default function AdminPage() {
                   <span>$${(mod.price ?? 0).toFixed(2)}</span>
                 </div>
               `).join('') || ''}
-              ${item.special_instructions ? `<div style="margin-left: 20px; font-style: italic; color: #666;">Note: ${item.special_instructions}</div>` : ''}
+              ${item.special_instructions ? `<div style="margin-left: 20px; font-style: italic; color: #666666;">Note: ${item.special_instructions}</div>` : ''}
             `).join('') || ''}
           </div>
           <div class="total">
-            <div class="item">
+            <div class="item" style="font-size:20px;">
+              <span>SUBTOTAL:</span>
+              <span>$${subtotal.toFixed(2)}</span>
+            </div>
+            <div class="item" style="font-size:20px;">
+              <span>TAX:</span>
+              <span>$${tax.toFixed(2)}</span>
+            </div>
+            <div class="item" style="font-size:22px;">
               <span>TOTAL:</span>
-              <span>$${(order.total ?? 0).toFixed(2)}</span>
+              <span>$${total.toFixed(2)}</span>
             </div>
           </div>
         </body>
@@ -471,7 +446,8 @@ export default function AdminPage() {
     win.document.close()
     win.focus()
     win.print()
-    win.close()
+    // Give browser a moment to start printing before closing
+    setTimeout(() => win.close(), 500)
   }
 
   // Mark order as ready for pickup
@@ -629,19 +605,21 @@ export default function AdminPage() {
         price: item.price,
         is_available: item.is_available,
         display_order: item.display_order,
-        image_url: item.image_url || ''
+        image_url: item.image_url || '',
+        image_storage_url: item.image_storage_url || ''
       })
     } else {
       setEditingMenuItem(null)
-      setMenuItemForm({
-        name: '',
-        description: '',
-        category_id: '',
-        price: 0,
-        is_available: true,
-        display_order: 0,
-        image_url: ''
-      })
+              setMenuItemForm({
+          name: '',
+          description: '',
+          category_id: '',
+          price: 0,
+          is_available: true,
+          display_order: 0,
+          image_url: '',
+          image_storage_url: ''
+        })
     }
     setShowMenuItemModal(true)
   }
@@ -693,17 +671,44 @@ export default function AdminPage() {
   const saveCategory = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(categoryForm)
-      })
-      
+      const method = editingCategory ? 'PUT' : 'POST'
+      const categoryData = {
+        ...categoryForm,
+        id: editingCategory ? editingCategory.id : categoryForm.name.toLowerCase().replace(/[^a-z0-9]/g, '')
+      }
+
+      // Helper to actually call the API
+      const doSave = async () => {
+        const resp = await fetch('/api/admin/categories', {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(categoryData)
+        })
+        return resp
+      }
+
+      let response = await doSave()
+
+      // If the image_url column doesn't exist yet, run migration automatically and retry once
+      if (!response.ok) {
+        try {
+          const err = await response.json()
+          if (err.message?.includes('image_url')) {
+            // Run migration silently
+            await fetch('/api/admin/migrate-categories', { method: 'POST' })
+            // Retry save one more time
+            response = await doSave()
+          }
+        } catch (_) {
+          /* swallow json parse errors */
+        }
+      }
+
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to save category')
+        throw new Error(error.error || error.message || 'Failed to save category')
       }
-      
+
       await fetchCategories()
       closeCategoryModal()
     } catch (error) {
@@ -735,15 +740,24 @@ export default function AdminPage() {
     if (category) {
       setEditingCategory(category)
       setCategoryForm({
+        id: category.id,
         name: category.name,
-        display_order: category.display_order
+        display_order: category.display_order,
+        image_url: category.image_url || '',
+        image_storage_url: category.image_storage_url || ''
       })
+      // Set the existing image as preview when editing
+      setSelectedCategoryImagePreview(category.image_url || null)
     } else {
       setEditingCategory(null)
       setCategoryForm({
+        id: '',
         name: '',
-        display_order: categories.length
+        display_order: categories.length,
+        image_url: '',
+        image_storage_url: ''
       })
+      setSelectedCategoryImagePreview(null)
     }
     setShowCategoryModal(true)
   }
@@ -759,8 +773,11 @@ export default function AdminPage() {
     setShowCategoryModal(false)
     setEditingCategory(null)
     setCategoryForm({
+      id: '',
       name: '',
-      display_order: 0
+      display_order: 0,
+      image_url: '',
+      image_storage_url: ''
     })
   }
 
@@ -1046,16 +1063,152 @@ export default function AdminPage() {
     win.close()
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (files && files.length > 0) {
-      const file = files[0]
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setMenuItemForm({ ...menuItemForm, image_url: reader.result as string })
-        setSelectedImagePreview(reader.result as string)
+  // Function to compress image before upload
+  const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.8): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')!
+      const img = new Image()
+      
+      img.onload = () => {
+        // Calculate new dimensions
+        const ratio = Math.min(maxWidth / img.width, maxWidth / img.height)
+        canvas.width = img.width * ratio
+        canvas.height = img.height * ratio
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob!], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          })
+          resolve(compressedFile)
+        }, 'image/jpeg', quality)
       }
-      reader.readAsDataURL(file)
+      
+      img.src = URL.createObjectURL(file)
+    })
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    setLoading(true)
+    
+    try {
+      // Show preview immediately for better UX
+      const previewUrl = URL.createObjectURL(file)
+      setSelectedImagePreview(previewUrl)
+      
+      // Compress the image
+      console.log(`Original size: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+      const compressedFile = await compressImage(file, 800, 0.8)
+      console.log(`Compressed size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`)
+      
+      // Upload to Supabase Storage
+      const formData = new FormData()
+      formData.append('file', compressedFile)
+      formData.append('type', 'menu-item')
+      
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+      
+      const data = await response.json()
+      
+      // Update form with storage URL (prioritize new system)
+      setMenuItemForm({
+        ...menuItemForm,
+        image_storage_url: data.url,
+        image_url: '' // Clear old Base64 field
+      })
+      
+      console.log('Image uploaded successfully:', data.url)
+      
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to upload image')
+      // Reset preview on error
+      setSelectedImagePreview(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCategoryImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    const file = files[0]
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file')
+      return
+    }
+
+    setLoading(true)
+    
+    try {
+      // Show preview immediately for better UX
+      const previewUrl = URL.createObjectURL(file)
+      setSelectedCategoryImagePreview(previewUrl)
+      
+      // Compress the image
+      console.log(`Original category image size: ${(file.size / 1024 / 1024).toFixed(2)}MB`)
+      const compressedFile = await compressImage(file, 800, 0.8)
+      console.log(`Compressed category image size: ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`)
+      
+      // Upload to Supabase Storage
+      const formData = new FormData()
+      formData.append('file', compressedFile)
+      formData.append('type', 'category')
+      
+      const response = await fetch('/api/admin/upload-image', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+      
+      const data = await response.json()
+      
+      // Update form with storage URL (prioritize new system)
+      setCategoryForm({
+        ...categoryForm,
+        image_storage_url: data.url,
+        image_url: '' // Clear old Base64 field
+      })
+      
+      console.log('Category image uploaded successfully:', data.url)
+      
+    } catch (error) {
+      console.error('Category upload error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to upload category image')
+      // Reset preview on error
+      setSelectedCategoryImagePreview(null)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1076,8 +1229,11 @@ export default function AdminPage() {
   
   // Form states for new features
   const [categoryForm, setCategoryForm] = useState({
+    id: '',
     name: '',
-    display_order: 0
+    display_order: 0,
+    image_url: '',
+    image_storage_url: '' // New field for Supabase Storage URLs
   })
   
   const [sizeForm, setSizeForm] = useState({
@@ -1097,6 +1253,10 @@ export default function AdminPage() {
   // Enhanced menu item form to include sizes and modifier groups
   const [menuItemSizes, setMenuItemSizes] = useState<MenuItemSize[]>([])
   const [selectedModifierGroups, setSelectedModifierGroups] = useState<string[]>([])
+
+  // Add category image upload states
+  const [selectedCategoryImageFile, setSelectedCategoryImageFile] = useState<File | null>(null)
+  const [selectedCategoryImagePreview, setSelectedCategoryImagePreview] = useState<string | null>(null)
 
   // Place fetchMenuItemModifierGroups above removeModifierGroup
   const fetchMenuItemModifierGroups = async (menuItemId: string) => {
@@ -1444,14 +1604,32 @@ export default function AdminPage() {
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#374151' }}>
-                        {category.name}
-                      </h3>
-                      <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                        Display Order: {category.display_order}
-                      </p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1 }}>
+                      {category.image_url && (
+                        <img 
+                          src={category.image_url} 
+                          alt={category.name}
+                          style={{
+                            width: '60px',
+                            height: '60px',
+                            objectFit: 'cover',
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e5e7eb'
+                          }}
+                        />
+                      )}
+                      <div>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: '600', color: '#374151' }}>
+                          {category.name}
+                        </h3>
+                        <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                          Display Order: {category.display_order}
+                        </p>
+                        <p style={{ color: '#6b7280', fontSize: '0.75rem' }}>
+                          ID: {category.id}
+                        </p>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
@@ -1465,6 +1643,19 @@ export default function AdminPage() {
                         }}
                       >
                         <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteCategory(category.id)}
+                        style={{
+                          padding: '0.5rem',
+                          backgroundColor: '#fee2e2',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          color: '#dc2626'
+                        }}
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
@@ -1561,7 +1752,9 @@ export default function AdminPage() {
                             🕒 {new Date(order.created_at).toLocaleString()}
                           </p>
                           <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
-                            💳 {order.payment_method.toUpperCase()} - {order.payment_status.toUpperCase()}
+                            💳 {order.payment_method.toUpperCase() === 'CASH' ? 
+                              `CASH - ${order.payment_status.toUpperCase() === 'PAID' ? '✅ PAID' : '❌ NOT PAID'}` : 
+                              `${order.payment_method.toUpperCase()} - ${order.payment_status.toUpperCase()}`}
                           </p>
                         </div>
                       </div>
@@ -1634,35 +1827,18 @@ export default function AdminPage() {
                               </div>
                               
                               {/* Modifiers */}
-                              {item.order_item_modifiers && item.order_item_modifiers.length > 0 && (
-                                <div style={{ marginLeft: '1rem', marginBottom: '0.5rem' }}>
-                                  {item.order_item_modifiers.map(mod => (
-                                    <div key={mod.id} style={{ 
-                                      display: 'flex',
-                                      justifyContent: 'space-between',
-                                      color: '#6b7280',
-                                      fontSize: '0.875rem'
-                                    }}>
-                                      <span>+ {mod.modifier_name}</span>
-                                      <span>${(mod.price ?? 0).toFixed(2)}</span>
-                                    </div>
-                                  ))}
+                              {item.order_item_modifiers?.map(mod => (
+                                <div key={mod.id} style={{ marginLeft: '20px', color: '#666666', fontSize: '0.875rem' }}>
+                                  <span>+ {mod.modifier_name}</span>
+                                  <span style={{ marginLeft: '0.5rem', fontWeight: '500' }}>
+                                    ${(mod.price ?? 0).toFixed(2)}
+                                  </span>
                                 </div>
-                              )}
+                              ))}
                               
-                              {/* Special Instructions */}
                               {item.special_instructions && (
-                                <div style={{ 
-                                  marginLeft: '1rem',
-                                  fontStyle: 'italic',
-                                  color: '#dc2626',
-                                  fontSize: '0.875rem',
-                                  backgroundColor: '#fef2f2',
-                                  padding: '0.5rem',
-                                  borderRadius: '0.25rem',
-                                  marginTop: '0.5rem'
-                                }}>
-                                  📝 Note: {item.special_instructions}
+                                <div style={{ marginLeft: '20px', fontStyle: 'italic', color: '#666666', fontSize: '0.875rem' }}>
+                                  Note: {item.special_instructions}
                                 </div>
                               )}
                             </div>
@@ -2613,6 +2789,68 @@ export default function AdminPage() {
                     </p>
                   </div>
 
+                  {/* Business Hours */}
+                  <div style={{
+                    padding: '1.5rem',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #e5e7eb',
+                    marginTop: '1.5rem'
+                  }}>
+                    <h3 style={{
+                      fontSize: '1.125rem',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '1rem'
+                    }}>
+                      Business Hours
+                    </h3>
+
+                    {daysOfWeek.map(day => {
+                      const displayName = day.charAt(0).toUpperCase() + day.slice(1)
+                      const dayHours = (businessSettings.hours && businessSettings.hours[day]) || { open: '', close: '', closed: false }
+                      return (
+                        <div key={day} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                          <label style={{ width: '6rem', fontWeight: 500, color: '#374151' }}>{displayName}</label>
+                          <input
+                            type="checkbox"
+                            checked={dayHours.closed}
+                            onChange={(e) => {
+                              const updatedHours = { ...businessSettings.hours, [day]: { ...dayHours, closed: e.target.checked } }
+                              setBusinessSettings({ ...businessSettings, hours: updatedHours })
+                            }}
+                          />
+                          {!dayHours.closed && (
+                            <React.Fragment>
+                               <input
+                                 type="time"
+                                 value={dayHours.open}
+                                 onChange={(e) => {
+                                   const updatedHours = { ...businessSettings.hours, [day]: { ...dayHours, open: e.target.value } }
+                                   setBusinessSettings({ ...businessSettings, hours: updatedHours })
+                                 }}
+                                 style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}
+                               />
+                               <span style={{ color: '#374151' }}>to</span>
+                               <input
+                                 type="time"
+                                 value={dayHours.close}
+                                 onChange={(e) => {
+                                   const updatedHours = { ...businessSettings.hours, [day]: { ...dayHours, close: e.target.value } }
+                                   setBusinessSettings({ ...businessSettings, hours: updatedHours })
+                                 }}
+                                 style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }}
+                               />
+                            </React.Fragment>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                      Toggle "Closed" to mark a day as fully closed.
+                    </p>
+                  </div>
+
                   {/* Save Button */}
                   <div style={{ 
                     display: 'flex', 
@@ -2888,6 +3126,57 @@ export default function AdminPage() {
                     }}
                     placeholder="Enter display order"
                   />
+                </div>
+
+                <div>
+                  <label style={{ 
+                    display: 'block', 
+                    fontSize: '0.875rem', 
+                    fontWeight: '500', 
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Category Image
+                  </label>
+                  
+                  {selectedCategoryImagePreview || categoryForm.image_url ? (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <img 
+                        src={selectedCategoryImagePreview || categoryForm.image_url} 
+                        alt="Category preview" 
+                        style={{
+                          width: '100%',
+                          maxHeight: '200px',
+                          objectFit: 'cover',
+                          borderRadius: '0.25rem',
+                          border: '1px solid #e5e7eb'
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  
+                  <div style={{
+                    border: '2px dashed #d1d5db',
+                    borderRadius: '0.5rem',
+                    padding: '2rem',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s'
+                  }}
+                  onClick={() => document.getElementById('category-image-upload')?.click()}
+                  >
+                    <Upload size={24} style={{ margin: '0 auto 0.5rem', color: '#6b7280' }} />
+                    <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                      Click to upload category image
+                    </p>
+                    <input
+                      id="category-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCategoryImageUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ 
@@ -3940,134 +4229,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Category Modal */}
-      {showCategoryModal && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem',
-          zIndex: 60
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '0.5rem',
-            maxWidth: '32rem',
-            width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto'
-          }}>
-            <div style={{ padding: '2rem' }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '1.5rem'
-              }}>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#374151' }}>
-                  {editingCategory ? 'Edit Category' : 'Add Category'}
-                </h3>
-                <button
-                  onClick={closeCategoryModal}
-                  style={{
-                    color: '#6b7280',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: '0.25rem'
-                  }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '0.875rem', 
-                    fontWeight: '500', 
-                    color: '#374151',
-                    marginBottom: '0.25rem'
-                  }}>
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '0.25rem'
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '0.875rem', 
-                    fontWeight: '500', 
-                    color: '#374151',
-                    marginBottom: '0.25rem'
-                  }}>
-                    Display Order
-                  </label>
-                  <input
-                    type="number"
-                    value={categoryForm.display_order}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, display_order: parseInt(e.target.value) || 0 })}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '0.25rem'
-                    }}
-                  />
-                </div>
-
-                <div style={{ 
-                  display: 'flex', 
-                  gap: '1rem', 
-                  justifyContent: 'flex-end',
-                  marginTop: '1rem'
-                }}>
-                  <button
-                    onClick={closeCategoryModal}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '0.25rem',
-                      background: 'white',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveCategory}
-                    style={{
-                      padding: '0.5rem 1rem',
-                      backgroundColor: '#dc2626',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '0.25rem',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {editingCategory ? 'Update' : 'Create'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Size Modal */}
       {showSizeModal && (

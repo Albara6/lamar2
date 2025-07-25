@@ -149,19 +149,33 @@ export async function POST(request: Request) {
     `
 
     try {
-      const { data, error } = await resend.emails.send({
-        from: `orders@${businessEmail.split('@')[1] || 'crazychicken.us'}`,
-        to: customer.email,
-        subject: `${businessName} Order Confirmation #${order.id}`,
-        html: emailHtml
-      })
+      // Prefer a custom from address if provided, else fall back to orders@<business-domain>
+      const primaryFromAddress = process.env.RESEND_FROM_EMAIL || `orders@${businessEmail.split('@')[1] || 'crazychicken.us'}`
 
-      if (error) {
-        console.error('Failed to send email:', error)
+      // Helper to actually send the email – keeps code DRY for retry logic
+      const attemptSend = async (from: string) => {
+        return resend.emails.send({
+          from,
+          to: customer.email,
+          subject: `${businessName} Order Confirmation #${order.id}`,
+          html: emailHtml
+        })
+      }
+
+      let sendResult = await attemptSend(primaryFromAddress)
+
+      // If the first attempt failed due to unverified domain, retry with the Resend sandbox domain
+      if (sendResult.error && /domain/i.test(sendResult.error.message || '')) {
+        console.warn('Primary domain not verified or rejected, retrying with onboarding@resend.dev')
+        sendResult = await attemptSend('onboarding@resend.dev')
+      }
+
+      if (sendResult.error) {
+        console.error('Failed to send email:', sendResult.error)
         return NextResponse.json({ 
           success: false, 
           error: 'Failed to send confirmation email',
-          details: error 
+          details: sendResult.error 
         }, { status: 200 }) // Don't fail the order if email fails
       }
 

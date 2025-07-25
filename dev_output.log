@@ -1,0 +1,143 @@
+
+> crazy-chicken-app@0.1.0 dev
+> next dev
+
+   ▲ Next.js 14.1.0
+   - Local:        http://localhost:3000
+   - Environments: .env.local, .env
+
+ ✓ Ready in 1087ms
+ ○ Compiling /possystem ...
+ ✓ Compiled /possystem in 1902ms (511 modules)
+ ✓ Compiled /api/menu in 239ms (602 modules)
+ ✓ Compiled /api/checkout/cash-payment in 53ms (374 modules)
+DEBUG: Incoming items: [
+  {
+    "menuItem": {
+      "id": "8bab0d50-75b4-4f3d-a8c3-d6e73b4c2e8e",
+      "name": "16pc Chicken",
+      "description": "Hand-breaded chicken, perfectly seasoned, perfectly crispy.",
+      "base_price": 0,
+      "category": "chicken"
+    },
+    "selectedSize": {
+      "id": "c7d5e84f-50fa-4431-bf92-04d2918493a5",
+      "name": "16pc Mix",
+      "price_modifier": 27.99
+    },
+    "selectedModifiers": [],
+    "quantity": 1,
+    "totalPrice": 27.99,
+    "specialInstructions": "test"
+  }
+]
+DEBUG: Is POS Order: true
+DEBUG: Order notes: Customer wants notification when ready
+Creating order items for order: adf94423-32b2-4537-a593-576f516170c0
+Items to process: [
+  {
+    "menuItem": {
+      "id": "8bab0d50-75b4-4f3d-a8c3-d6e73b4c2e8e",
+      "name": "16pc Chicken",
+      "description": "Hand-breaded chicken, perfectly seasoned, perfectly crispy.",
+      "base_price": 0,
+      "category": "chicken"
+    },
+    "selectedSize": {
+      "id": "c7d5e84f-50fa-4431-bf92-04d2918493a5",
+      "name": "16pc Mix",
+      "price_modifier": 27.99
+    },
+    "selectedModifiers": [],
+    "quantity": 1,
+    "totalPrice": 27.99,
+    "specialInstructions": "test"
+  }
+]
+Processing item: {
+  menuItem: {
+    id: '8bab0d50-75b4-4f3d-a8c3-d6e73b4c2e8e',
+    name: '16pc Chicken',
+    description: 'Hand-breaded chicken, perfectly seasoned, perfectly crispy.',
+    base_price: 0,
+    category: 'chicken'
+  },
+  selectedSize: {
+    id: 'c7d5e84f-50fa-4431-bf92-04d2918493a5',
+    name: '16pc Mix',
+    price_modifier: 27.99
+  },
+  selectedModifiers: [],
+  quantity: 1,
+  totalPrice: 27.99,
+  specialInstructions: 'test'
+}
+Created order item: {
+  id: 'f7bfa659-96bc-4ef5-816c-e857700a96c3',
+  order_id: 'adf94423-32b2-4537-a593-576f516170c0',
+  menu_item_id: '8bab0d50-75b4-4f3d-a8c3-d6e73b4c2e8e',
+  menu_item_size_id: 'c7d5e84f-50fa-4431-bf92-04d2918493a5',
+  quantity: 1,
+  unit_price: 27.99,
+  total_price: 27.99,
+  menu_item_name: '16pc Chicken',
+  size_name: '16pc Mix',
+  special_instructions: 'test',
+  created_at: '2025-07-23T07:01:51.728283+00:00'
+}
+Final order items created: 1
+ ✓ Compiled /admin in 195ms (633 modules)
+ ✓ Compiled /api/admin/categories in 55ms (391 modules)
+ ✓ Compiled (399 modules)
+[2025-07-23T07:02:16.849Z] Fetching orders from database...
+[2025-07-23T07:02:16.849Z] Database returned 66 orders
+[2025-07-23T07:02:16.849Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+ ✓ Compiled /favicon.ico in 171ms (425 modules)
+[2025-07-23T07:02:19.745Z] Fetching orders from database...
+[2025-07-23T07:02:19.745Z] Database returned 66 orders
+[2025-07-23T07:02:19.745Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:22.735Z] Fetching orders from database...
+[2025-07-23T07:02:22.735Z] Database returned 66 orders
+[2025-07-23T07:02:22.735Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:25.740Z] Fetching orders from database...
+[2025-07-23T07:02:25.740Z] Database returned 66 orders
+[2025-07-23T07:02:25.740Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:28.739Z] Fetching orders from database...
+[2025-07-23T07:02:28.739Z] Database returned 66 orders
+[2025-07-23T07:02:28.739Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:31.739Z] Fetching orders from database...
+[2025-07-23T07:02:31.739Z] Database returned 66 orders
+[2025-07-23T07:02:31.739Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:34.736Z] Fetching orders from database...
+[2025-07-23T07:02:34.736Z] Database returned 66 orders
+[2025-07-23T07:02:34.736Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:37.739Z] Fetching orders from database...
+[2025-07-23T07:02:37.739Z] Database returned 66 orders
+[2025-07-23T07:02:37.739Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:40.738Z] Fetching orders from database...
+[2025-07-23T07:02:40.738Z] Database returned 66 orders
+[2025-07-23T07:02:40.738Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:43.737Z] Fetching orders from database...
+[2025-07-23T07:02:43.737Z] Database returned 66 orders
+[2025-07-23T07:02:43.737Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:46.762Z] Fetching orders from database...
+[2025-07-23T07:02:46.762Z] Database returned 66 orders
+[2025-07-23T07:02:46.762Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: pending - Created: 2025-07-23T07:01:51.660947+00:00
+ ✓ Compiled /api/admin/orders/[id] in 77ms (427 modules)
+[2025-07-23T07:02:48.966Z] Fetching orders from database...
+[2025-07-23T07:02:48.966Z] Database returned 66 orders
+[2025-07-23T07:02:48.966Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: accepted - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:49.738Z] Fetching orders from database...
+[2025-07-23T07:02:49.738Z] Database returned 66 orders
+[2025-07-23T07:02:49.738Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: accepted - Created: 2025-07-23T07:01:51.660947+00:00
+ ✓ Compiled /api/admin/orders/[id]/ready in 82ms (429 modules)
+ ○ Compiling /api/notifications/send-sms ...
+ ✓ Compiled /api/notifications/send-sms in 1138ms (1228 modules)
+[2025-07-23T07:02:52.890Z] Fetching orders from database...
+[2025-07-23T07:02:52.890Z] Database returned 66 orders
+[2025-07-23T07:02:52.890Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: ready - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:54.853Z] Fetching orders from database...
+[2025-07-23T07:02:54.853Z] Database returned 66 orders
+[2025-07-23T07:02:54.853Z] Latest order: adf94423-32b2-4537-a593-576f516170c0 - Status: completed - Created: 2025-07-23T07:01:51.660947+00:00
+[2025-07-23T07:02:55.734Z] Fetching orders from database...
+[?25h

@@ -12,7 +12,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       .from('orders')
       .update({ order_status: 'ready' })
       .eq('id', params.id)
-      .select('*, customer_phone')
+      .select('*')
       .single()
 
     if (orderError) {
@@ -20,8 +20,10 @@ export async function POST(request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Failed to mark order as ready' }, { status: 500 })
     }
 
-    // Send SMS notification via Twilio
+    console.log('Order data when marking ready:', order);
+    // Send SMS notification via Twilio (only if a valid phone exists)
     if (order.customer_phone) {
+      console.log('Attempting SMS to customer_phone:', order.customer_phone)
       try {
         await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-sms`, {
           method: 'POST',

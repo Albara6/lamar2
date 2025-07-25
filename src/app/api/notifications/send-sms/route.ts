@@ -9,6 +9,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'phone and message are required' }, { status: 400 })
     }
 
+    // Sanitize phone: keep digits only
+    const digitsOnly = phone.replace(/\D/g, '')
+
+    // Basic validation: US 10-digit numbers only (extend as needed)
+    if (digitsOnly.length !== 10) {
+      console.warn('SMS skipped – invalid phone:', phone)
+      return NextResponse.json({ error: 'Invalid phone format' }, { status: 400 })
+    }
+
+    const toNumber = `+1${digitsOnly}`
+
     const accountSid = process.env.TWILIO_ACCOUNT_SID!
     const authToken = process.env.TWILIO_AUTH_TOKEN!
     const fromPhone = process.env.TWILIO_PHONE_NUMBER!
@@ -22,7 +33,7 @@ export async function POST(request: Request) {
 
     await client.messages.create({
       body: message,
-      to: phone.startsWith('+') ? phone : `+1${phone}`, // Default to US country code if not supplied
+      to: toNumber,
       from: fromPhone
     })
 

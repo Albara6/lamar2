@@ -1,0 +1,233 @@
+
+> crazy-chicken-app@0.1.0 dev
+> next dev
+
+   ▲ Next.js 14.1.0
+   - Local:        http://localhost:3000
+   - Environments: .env.local, .env
+
+ ✓ Ready in 1089ms
+ ✓ Compiled /api/checkout/cash-payment in 334ms (135 modules)
+DEBUG: Incoming items: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "quantity": 1,
+    "totalPrice": 6.89
+  }
+]
+DEBUG: Is POS Order: true
+DEBUG: Order notes: undefined
+Error creating order: {
+  code: 'PGRST204',
+  details: null,
+  hint: null,
+  message: "Could not find the 'notes' column of 'orders' in the schema cache"
+}
+ ✓ Compiled in 52ms (135 modules)
+DEBUG: Incoming items: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "quantity": 1,
+    "totalPrice": 6.89
+  }
+]
+DEBUG: Is POS Order: true
+DEBUG: Order notes: Test POS order
+Creating order items for order: abb96ce1-1f3a-4e35-867d-eccc381a2e1c
+Items to process: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "quantity": 1,
+    "totalPrice": 6.89
+  }
+]
+Processing item: {
+  menuItem: {
+    id: '550e8400-e29b-41d4-a716-446655440011',
+    name: '2pc Mix',
+    base_price: 4.39,
+    category: 'chicken'
+  },
+  quantity: 1,
+  totalPrice: 6.89
+}
+Created order item: {
+  id: 'c6432c75-07bb-4a07-90e6-5cdd888d1b55',
+  order_id: 'abb96ce1-1f3a-4e35-867d-eccc381a2e1c',
+  menu_item_id: '550e8400-e29b-41d4-a716-446655440011',
+  menu_item_size_id: null,
+  quantity: 1,
+  unit_price: 6.89,
+  total_price: 6.89,
+  menu_item_name: '2pc Mix',
+  size_name: null,
+  special_instructions: null,
+  created_at: '2025-07-23T06:54:47.369816+00:00'
+}
+Final order items created: 1
+ ✓ Compiled /api/admin/orders in 31ms (137 modules)
+[2025-07-23T06:54:54.907Z] Fetching orders from database...
+[2025-07-23T06:54:54.907Z] Database returned 63 orders
+[2025-07-23T06:54:54.907Z] Latest order: abb96ce1-1f3a-4e35-867d-eccc381a2e1c - Status: pending - Created: 2025-07-23T06:54:47.297024+00:00
+DEBUG: Incoming items: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "quantity": 1,
+    "totalPrice": 6.89
+  }
+]
+DEBUG: Is POS Order: true
+DEBUG: Order notes: Customer wants notification when ready
+Creating order items for order: 57f1b19c-da4b-438a-9d9a-4de9c366f0d1
+Items to process: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "quantity": 1,
+    "totalPrice": 6.89
+  }
+]
+Processing item: {
+  menuItem: {
+    id: '550e8400-e29b-41d4-a716-446655440011',
+    name: '2pc Mix',
+    base_price: 4.39,
+    category: 'chicken'
+  },
+  quantity: 1,
+  totalPrice: 6.89
+}
+Created order item: {
+  id: '643438b1-d169-4bcf-848f-270a822d69ae',
+  order_id: '57f1b19c-da4b-438a-9d9a-4de9c366f0d1',
+  menu_item_id: '550e8400-e29b-41d4-a716-446655440011',
+  menu_item_size_id: null,
+  quantity: 1,
+  unit_price: 6.89,
+  total_price: 6.89,
+  menu_item_name: '2pc Mix',
+  size_name: null,
+  special_instructions: null,
+  created_at: '2025-07-23T06:55:48.213301+00:00'
+}
+Final order items created: 1
+DEBUG: Incoming items: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "description": "Hand-breaded chicken, perfectly seasoned, perfectly crispy.",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "selectedSize": {
+      "id": "65e43754-7a07-4f81-ae69-116a7986a113",
+      "name": "2pc COMBO",
+      "price_modifier": 2.5
+    },
+    "selectedModifiers": [
+      {
+        "id": "eed41519-a5f7-48a8-951b-8166576ac49d",
+        "name": "2pc Dark (1 leg, 1 thigh)",
+        "price": 0
+      }
+    ],
+    "quantity": 1,
+    "specialInstructions": "Extra crispy",
+    "totalPrice": 6.89
+  }
+]
+DEBUG: Is POS Order: true
+DEBUG: Order notes: Customer wants notification when ready
+Creating order items for order: 8343fbaa-5870-4189-bb88-78af9009fc98
+Items to process: [
+  {
+    "menuItem": {
+      "id": "550e8400-e29b-41d4-a716-446655440011",
+      "name": "2pc Mix",
+      "description": "Hand-breaded chicken, perfectly seasoned, perfectly crispy.",
+      "base_price": 4.39,
+      "category": "chicken"
+    },
+    "selectedSize": {
+      "id": "65e43754-7a07-4f81-ae69-116a7986a113",
+      "name": "2pc COMBO",
+      "price_modifier": 2.5
+    },
+    "selectedModifiers": [
+      {
+        "id": "eed41519-a5f7-48a8-951b-8166576ac49d",
+        "name": "2pc Dark (1 leg, 1 thigh)",
+        "price": 0
+      }
+    ],
+    "quantity": 1,
+    "specialInstructions": "Extra crispy",
+    "totalPrice": 6.89
+  }
+]
+Processing item: {
+  menuItem: {
+    id: '550e8400-e29b-41d4-a716-446655440011',
+    name: '2pc Mix',
+    description: 'Hand-breaded chicken, perfectly seasoned, perfectly crispy.',
+    base_price: 4.39,
+    category: 'chicken'
+  },
+  selectedSize: {
+    id: '65e43754-7a07-4f81-ae69-116a7986a113',
+    name: '2pc COMBO',
+    price_modifier: 2.5
+  },
+  selectedModifiers: [
+    {
+      id: 'eed41519-a5f7-48a8-951b-8166576ac49d',
+      name: '2pc Dark (1 leg, 1 thigh)',
+      price: 0
+    }
+  ],
+  quantity: 1,
+  specialInstructions: 'Extra crispy',
+  totalPrice: 6.89
+}
+Created order item: {
+  id: '3c5273cb-91d1-4251-85e5-995854543b3d',
+  order_id: '8343fbaa-5870-4189-bb88-78af9009fc98',
+  menu_item_id: '550e8400-e29b-41d4-a716-446655440011',
+  menu_item_size_id: '65e43754-7a07-4f81-ae69-116a7986a113',
+  quantity: 1,
+  unit_price: 6.89,
+  total_price: 6.89,
+  menu_item_name: '2pc Mix',
+  size_name: '2pc COMBO',
+  special_instructions: 'Extra crispy',
+  created_at: '2025-07-23T06:56:56.64635+00:00'
+}
+Creating modifiers for item: 3c5273cb-91d1-4251-85e5-995854543b3d
+Created modifiers for order item: 3c5273cb-91d1-4251-85e5-995854543b3d
+Final order items created: 1
+[?25h

@@ -34,6 +34,7 @@ export async function GET() {
       description: item.description,
       category_id: item.category, // map category to category_id
       image_url: item.image_url,
+      image_storage_url: item.image_storage_url, // new field for optimized images
       price: item.base_price, // map base_price to price
       is_available: item.is_available,
       display_order: item.sort_order, // map sort_order to display_order
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         category: body.category_id, // map category_id to category
         base_price: body.price, // map price to base_price
         image_url: body.image_url,
+        image_storage_url: body.image_storage_url, // new field for Supabase Storage URLs
         is_available: body.is_available,
         sort_order: body.display_order || 0 // map display_order to sort_order
       })

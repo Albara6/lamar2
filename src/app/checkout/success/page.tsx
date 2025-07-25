@@ -66,6 +66,21 @@ function CheckoutSuccessContent() {
     }
   }
 
+  // Helper to render payment status row appropriately
+  const renderPaymentStatus = () => {
+    if (!orderDetails) return null
+    const isCash = orderDetails.payment_method === 'cash'
+    const statusText = isCash ? 'Pay at Pickup' : '✓ Paid'
+    const statusColor = isCash ? '#dc2626' : '#10b981'
+
+    return (
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+        <span style={{ color: '#6b7280' }}>Payment Status:</span>
+        <span style={{ fontWeight: 'bold', color: statusColor }}>{statusText}</span>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div style={{
@@ -189,7 +204,7 @@ function CheckoutSuccessContent() {
             🍗 CRAZY CHICKEN
           </h1>
           <p style={{ opacity: 0.9, margin: '0.5rem 0 0 0' }}>
-            Payment Successful
+            Order Successful
           </p>
         </div>
 
@@ -209,7 +224,7 @@ function CheckoutSuccessContent() {
           </div>
 
           <h2 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>
-            Payment Successful!
+            Order Successful!
           </h2>
           
           <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '1.125rem' }}>
@@ -232,19 +247,16 @@ function CheckoutSuccessContent() {
               <h3 style={{ fontWeight: 'bold', marginBottom: '1rem', color: '#374151' }}>Order Summary</h3>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ color: '#6b7280' }}>Customer:</span>
-                <span style={{ fontWeight: 'bold' }}>{orderDetails.customer_name}</span>
+                <span style={{ fontWeight: 'bold', color: '#374151' }}>{orderDetails.customer_name}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ color: '#6b7280' }}>Total Amount:</span>
-                <span style={{ fontWeight: 'bold', fontSize: '1.125rem' }}>${orderDetails.total_amount}</span>
+                <span style={{ fontWeight: 'bold', color: '#374151', fontSize: '1.125rem' }}>${orderDetails.total_amount}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ color: '#6b7280' }}>Payment Status:</span>
-                <span style={{ fontWeight: 'bold', color: '#10b981' }}>✓ Paid</span>
-              </div>
+              {renderPaymentStatus()}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: '#6b7280' }}>Estimated Pickup:</span>
-                <span style={{ fontWeight: 'bold' }}>15-20 minutes</span>
+                <span style={{ fontWeight: 'bold', color: '#374151' }}>15-20 minutes</span>
               </div>
             </div>
           )}

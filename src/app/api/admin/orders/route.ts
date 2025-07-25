@@ -21,6 +21,8 @@ export async function GET() {
           order_item_modifiers (*)
         )
       `)
+      // Include all cash orders (regardless of payment_status) **OR** any orders that are already paid
+      .or('payment_method.eq.cash,payment_status.eq.paid')
       .order('created_at', { ascending: false })
     
     console.log(`[${queryTime}] Database returned ${orders?.length || 0} orders`)

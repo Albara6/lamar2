@@ -46,6 +46,7 @@ export default function HomePage(): React.ReactElement {
   const displayName = businessSettings?.name || 'CRAZY CHICKEN'
   const displayPhone = businessSettings?.phone || '(555) 123-CRAZY'
   const displayHours = businessSettings?.hours ? formatHours(businessSettings.hours) : 'Open Daily 11AM - 11PM'
+  const displayAddress = businessSettings?.address || '123 Food Street, City, State 12345'
 
   return (
     <div style={{
@@ -215,6 +216,10 @@ export default function HomePage(): React.ReactElement {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span style={{ color: '#fbbf24', fontSize: '1.25rem' }}>🕐</span>
             <span>{displayHours}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ color: '#fbbf24', fontSize: '1.25rem' }}>📍</span>
+            <span>{displayAddress}</span>
           </div>
           <div style={{ color: '#fbbf24', fontWeight: 'bold' }}>
             🚫 PICKUP ONLY - NO DELIVERY
