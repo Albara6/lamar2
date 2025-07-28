@@ -66,25 +66,35 @@ export async function POST(request: Request) {
 
     // Send confirmation email
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/checkout/send-confirmation`, {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+      const emailResp = await fetch(`${baseUrl}/api/checkout/send-confirmation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: order.id,
-          customerEmail: order.customer_email,
-          customerName: order.customer_name,
-          items: orderItems?.map(item => ({
-            quantity: item.quantity,
-            menuItem: { name: item.menu_item_name },
-            selectedSize: item.size_name ? { name: item.size_name } : null,
-            selectedModifiers: [], // Could fetch these separately if needed
-            totalPrice: item.total_price,
-            specialInstructions: item.special_instructions
-          })) || [],
-          total: order.total_amount,
-          paymentMethod: 'stripe'
+          order: {
+            id: order.id,
+            items: (orderItems || []).map(item => ({
+              quantity: item.quantity,
+              menuItem: { name: item.menu_item_name },
+              selectedSize: item.size_name ? { name: item.size_name } : null,
+              selectedModifiers: [],
+              totalPrice: item.total_price,
+              specialInstructions: item.special_instructions
+            })),
+            total: order.total_amount,
+            paymentMethod: 'stripe'
+          },
+          customer: {
+            email: order.customer_email,
+            name: order.customer_name
+          }
         })
       })
+
+      if (!emailResp.ok) {
+        const errJson = await emailResp.json().catch(() => null)
+        console.error('Confirmation email endpoint responded with error:', errJson || emailResp.statusText)
+      }
     } catch (emailError) {
       console.error('Failed to send confirmation email:', emailError)
       // Don't fail the verification if email fails

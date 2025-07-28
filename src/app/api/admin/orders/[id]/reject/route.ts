@@ -29,7 +29,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
     if (order.customer_phone) {
       console.log('Attempting SMS to customer_phone:', order.customer_phone)
       try {
-        await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/notifications/send-sms`, {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+        await fetch(`${baseUrl}/api/notifications/send-sms`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

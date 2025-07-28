@@ -1,14 +1,34 @@
-import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
 
-// Force dynamic rendering so menu updates are fetched immediately
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Fetch menu items with sizes and modifier groups from database
-    const { data: menuItems, error: menuError } = await supabaseAdmin
+    const { searchParams } = new URL(request.url)
+    const restaurantSlug = searchParams.get('restaurant')
+
+    if (!restaurantSlug) {
+      return NextResponse.json(
+        { success: false, error: 'Restaurant parameter is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get restaurant by slug
+    const { data: restaurant, error: restaurantError } = await supabase
+      .from('restaurants')
+      .select('*')
+      .eq('slug', restaurantSlug)
+      .single()
+
+    if (restaurantError || !restaurant) {
+      return NextResponse.json(
+        { success: false, error: 'Restaurant not found' },
+        { status: 404 }
+      )
+    }
+
+    // Fetch menu items for this restaurant
+    const { data: menuItems, error: menuError } = await supabase
       .from('menu_items')
       .select(`
         *,
@@ -21,89 +41,62 @@ export async function GET() {
           )
         )
       `)
+      .eq('restaurant_id', restaurant.id)
       .eq('is_available', true)
-      .order('sort_order', { ascending: true })
+      .order('sort_order')
 
     if (menuError) {
-      console.error('Failed to fetch menu items:', menuError)
-      return NextResponse.json({ error: 'Failed to fetch menu items' }, { status: 500 })
+      console.error('Menu fetch error:', menuError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch menu items' },
+        { status: 500 }
+      )
     }
 
-    // Fetch business settings
-    // Also fetch categories in display order
-    const { data: categories, error: catError } = await supabaseAdmin
+    // Fetch categories for this restaurant
+    const { data: categories, error: categoriesError } = await supabase
       .from('categories')
       .select('*')
+      .eq('restaurant_id', restaurant.id)
       .order('display_order')
 
-    if (catError) {
-      console.error('Failed to fetch categories:', catError)
+    if (categoriesError) {
+      console.error('Categories fetch error:', categoriesError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch categories' },
+        { status: 500 }
+      )
     }
 
-    const { data: businessSettings, error: settingsError } = await supabaseAdmin
+    // Fetch business settings for this restaurant
+    const { data: businessSettings, error: settingsError } = await supabase
       .from('business_settings')
       .select('*')
-      .limit(1)
+      .eq('restaurant_id', restaurant.id)
       .single()
 
     if (settingsError) {
-      console.error('Failed to fetch business settings:', settingsError)
-      return NextResponse.json({ error: 'Failed to fetch business settings' }, { status: 500 })
+      console.error('Settings fetch error:', settingsError)
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch business settings' },
+        { status: 500 }
+      )
     }
 
-    // Map database fields to frontend expected format
-    const mappedMenuItems = (menuItems || []).map(item => {
-      // Sort sizes by sort_order (fallback by name)
-      const sortedSizes = (item.menu_item_sizes || []).sort((a: any, b: any) => {
-        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
-        return a.name.localeCompare(b.name)
-      })
-
-      // Sort modifier groups and their nested items
-      const sortedGroups = (item.menu_item_modifier_groups || [])
-        .sort((a: any, b: any) => {
-          const aOrder = a.modifier_groups?.sort_order ?? 0
-          const bOrder = b.modifier_groups?.sort_order ?? 0
-          if (aOrder !== bOrder) return aOrder - bOrder
-          return (a.modifier_groups?.name || '').localeCompare(b.modifier_groups?.name || '')
-        })
-        .map((group: any) => {
-          const sortedItems = (group.modifier_groups?.modifier_items || []).sort((x: any, y: any) => {
-            if (x.sort_order !== y.sort_order) return x.sort_order - y.sort_order
-            return x.name.localeCompare(y.name)
-          })
-          return {
-            ...group,
-            modifier_groups: {
-              ...group.modifier_groups,
-              modifier_items: sortedItems
-            }
-          }
-        })
-
-      return {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        category: item.category, // keep as category for frontend compatibility
-        base_price: item.base_price,
-        is_available: item.is_available,
-        sort_order: item.sort_order,
-        image_url: item.image_url,
-        image_storage_url: item.image_storage_url, // new optimized images
-        menu_item_sizes: sortedSizes,
-        menu_item_modifier_groups: sortedGroups
+    return NextResponse.json({
+      success: true,
+      data: {
+        menuItems: menuItems || [],
+        categories: categories || [],
+        businessSettings,
+        restaurant
       }
     })
-
-    return NextResponse.json({
-      menuItems: mappedMenuItems,
-      businessSettings,
-      categories: categories || []
-    })
-
   } catch (error) {
-    console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in menu API:', error)
+    return NextResponse.json(
+      { success: false, error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 } 

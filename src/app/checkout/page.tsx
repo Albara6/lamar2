@@ -7,7 +7,7 @@ import { CheckoutData, CustomerInfo } from '@/types'
 import { Phone, User, Mail, CreditCard, DollarSign, Check, ArrowLeft, Loader2 } from 'lucide-react'
 
 // --- Constants ---
-const TAX_RATE = 0.11375 // 11.375%
+const TAX_RATE = 0.0975 // 9.75%
 
 interface PhoneVerificationStep {
   phoneNumber: string
@@ -834,7 +834,7 @@ export default function CheckoutPage() {
                 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                      <span style={{ color: '#6b7280' }}>Subtotal:</span>
+                      <span style={{ color: '#111827' }}>Subtotal:</span>
                       <span style={{ fontWeight: 'bold' }}>${subtotal.toFixed(2)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>

@@ -267,6 +267,7 @@ export default function AdminPage() {
       await Promise.all([
         fetchMenuItems(),
         fetchModifierGroups(),
+        fetchCategories(),
         fetchBusinessSettings(),
         fetchOrders()
       ])

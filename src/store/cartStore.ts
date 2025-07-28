@@ -4,6 +4,8 @@ import { CartItem, CartStore } from '@/types'
 export const useCartStore = create<CartStore>((set, get) => ({
   items: [],
   total: 0,
+  selectedRestaurant: undefined,
+  pickupType: undefined,
   
   addItem: (item: CartItem) => {
     set((state) => {
@@ -41,6 +43,25 @@ export const useCartStore = create<CartStore>((set, get) => ({
   },
   
   clearCart: () => {
-    set({ items: [], total: 0 })
+    set({ items: [], total: 0, selectedRestaurant: undefined, pickupType: undefined })
+  },
+
+  setRestaurant: (restaurant) => {
+    set((state) => {
+      // If switching restaurants, clear the cart since menu items are restaurant-specific
+      if (state.selectedRestaurant && state.selectedRestaurant.id !== restaurant.id) {
+        return {
+          selectedRestaurant: restaurant,
+          items: [],
+          total: 0,
+          pickupType: undefined
+        }
+      }
+      return { selectedRestaurant: restaurant }
+    })
+  },
+
+  setPickupType: (type) => {
+    set({ pickupType: type })
   }
 })) 

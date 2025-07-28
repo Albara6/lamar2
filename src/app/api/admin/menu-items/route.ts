@@ -60,20 +60,52 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     
-    const { data: menuItem, error } = await supabaseAdmin
+    let { data: menuItem, error } = await supabaseAdmin
       .from('menu_items')
       .insert({
         name: body.name,
         description: body.description,
         category: body.category_id, // map category_id to category
         base_price: body.price, // map price to base_price
-        image_url: body.image_url,
-        image_storage_url: body.image_storage_url, // new field for Supabase Storage URLs
+        ...(body.image_url ? { image_url: body.image_url } : {}),
+        ...(body.image_storage_url ? { image_storage_url: body.image_storage_url } : {}),
         is_available: body.is_available,
         sort_order: body.display_order || 0 // map display_order to sort_order
       })
       .select()
       .single()
+
+    // If the insert failed because the image columns are missing, add them and retry once
+    if (error && error.code === 'PGRST204' && (error.message?.includes('image_url') || error.message?.includes('image_storage_url'))) {
+      console.warn('image columns missing, running automatic migration...')
+      const { error: alterErr } = await supabaseAdmin.rpc('exec_sql', {
+        sql_query: `ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_url text; ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS image_storage_url text;`
+      })
+      if (alterErr) {
+        console.error('Migration failed:', alterErr)
+        return NextResponse.json({ error: 'Failed to migrate menu_items table' }, { status: 500 })
+      }
+      // Retry insert once after migration
+      const retry = await supabaseAdmin
+        .from('menu_items')
+        .insert({
+          name: body.name,
+          description: body.description,
+          category: body.category_id,
+          base_price: body.price,
+          ...(body.image_url ? { image_url: body.image_url } : {}),
+          ...(body.image_storage_url ? { image_storage_url: body.image_storage_url } : {}),
+          is_available: body.is_available,
+          sort_order: body.display_order || 0
+        })
+        .select()
+        .single()
+      if (retry.error || !retry.data) {
+        console.error('Retry insert failed:', retry.error)
+        return NextResponse.json({ error: 'Failed to create menu item after migration' }, { status: 500 })
+      }
+      menuItem = retry.data
+    }
 
     if (error || !menuItem) {
       console.error('Failed to create menu item:', error)

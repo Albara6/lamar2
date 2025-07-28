@@ -8,9 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(request: Request) {
   try {
-    const { customer, paymentMethod, items, total } = await request.json()
+    const { customer, paymentMethod, items, total, restaurant, pickupType } = await request.json()
 
-    if (!customer || !items || !total || paymentMethod !== 'stripe') {
+    if (!customer || !items || !total || paymentMethod !== 'stripe' || !restaurant) {
       return NextResponse.json(
         { error: 'Invalid request data' },
         { status: 400 }
@@ -57,10 +57,12 @@ export async function POST(request: Request) {
       .from('orders')
       .insert({
         customer_id: customerId,
+        restaurant_id: restaurant.id,
         total_amount: total,
         payment_method: 'online',
         payment_status: 'pending',
         order_status: 'pending',
+        pickup_type: pickupType || 'pickup_inside',
         phone_verified: true,
         customer_name: customer.name,
         customer_email: customer.email,
