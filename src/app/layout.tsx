@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from '@/lib/AuthProvider';
+import AuthGate from '@/components/AuthGate';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,9 +29,11 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         <AuthProvider>
-          <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-            {children}
-          </div>
+          <AuthGate>
+            <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+              {children}
+            </div>
+          </AuthGate>
         </AuthProvider>
       </body>
     </html>
