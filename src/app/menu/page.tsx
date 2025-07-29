@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { ShoppingCart, Plus, Minus, ArrowLeft, X } from 'lucide-react'
 import { useCartStore } from '@/store/cartStore'
+import { useAuth } from '@/lib/AuthProvider'
 import { MenuItem, MenuItemSize, ModifierGroup, ModifierItem, MenuItemModifierGroup, CartItem, CartMenuItem, CartMenuItemSize, CartModifierItem } from '@/types'
 import { useRouter } from 'next/navigation'
 
@@ -21,6 +22,7 @@ interface MenuData {
 export default function MenuPage() {
   const router = useRouter()
   const cart = useCartStore()
+  const { user } = useAuth()
   const [menuData, setMenuData] = useState<MenuData | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   // default empty means no category selected yet
@@ -392,7 +394,15 @@ export default function MenuPage() {
           
           <div style={{ display: 'flex', gap: '1rem' }}>
             <button
-              onClick={() => router.push('/account')}
+              onClick={() => {
+                if (user) {
+                  router.push('/account')
+                } else {
+                  // Clear guest flag to trigger auth modal
+                  localStorage.removeItem('guest')
+                  window.location.reload()
+                }
+              }}
               style={{
                 position: 'relative',
                 padding: '0.5rem',
@@ -405,7 +415,7 @@ export default function MenuPage() {
                 fontWeight: '500'
               }}
             >
-              Account
+              {user ? 'Account' : 'Sign In'}
             </button>
             <button 
               onClick={() => setShowCart(true)}

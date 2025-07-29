@@ -5,6 +5,7 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { useCartStore } from '@/store/cartStore'
 import { CheckoutData, CustomerInfo } from '@/types'
 import { Phone, User, Mail, CreditCard, DollarSign, Check, ArrowLeft, Loader2 } from 'lucide-react'
+import { useAuth } from '@/lib/AuthProvider'
 
 // --- Constants ---
 const TAX_RATE = 0.0975 // 9.75%
@@ -30,7 +31,10 @@ interface PaymentStep {
 
 export default function CheckoutPage() {
   const cart = useCartStore()
-  const [currentStep, setCurrentStep] = useState<'phone' | 'customer' | 'payment' | 'confirmation'>('phone')
+  const { user } = useAuth()
+  const [currentStep, setCurrentStep] = useState<'phone' | 'customer' | 'payment' | 'confirmation'>(
+    user ? 'payment' : 'phone' // Skip phone step for logged-in users
+  )
   
   // Phone verification state
   const [phoneStep, setPhoneStep] = useState<PhoneVerificationStep>({
@@ -74,10 +78,31 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string>('')
   const [isHydrated, setIsHydrated] = useState(false)
 
-  // Set hydrated state after component mounts
+  // Set hydrated state after component mounts and load customer profile
   useEffect(() => {
     setIsHydrated(true)
-  }, [])
+    
+    // If user is logged in, fetch their profile and auto-fill
+    if (user && !customerStep.isAutoFilled) {
+      fetch('/api/customer/profile')
+        .then(res => res.json())
+        .then(data => {
+          if (data.customer) {
+            setCustomerStep({
+              name: data.customer.name || '',
+              email: data.customer.email || '',
+              isAutoFilled: true
+            })
+            setPhoneStep(prev => ({
+              ...prev,
+              phoneNumber: data.customer.phone || '',
+              isVerified: true // Skip verification for logged-in users
+            }))
+          }
+        })
+        .catch(err => console.error('Failed to load profile:', err))
+    }
+  }, [user, customerStep.isAutoFilled])
 
   // Redirect to the menu if the cart is empty *when first arriving* on this page.
   // After the user has progressed past the phone-verification step we no longer
@@ -211,7 +236,8 @@ export default function CheckoutPage() {
           phone: phoneStep.phoneNumber.replace(/\D/g, ''),
           name: customerStep.name.trim(),
           email: customerStep.email.trim(),
-          isVerified: phoneStep.isVerified
+          isVerified: phoneStep.isVerified,
+          customer_id: user?.id // Include customer_id if logged in
         },
         paymentMethod: paymentStep.method,
         items: cart.items,
