@@ -36,7 +36,7 @@ export async function GET() {
     }
 
     // Map database fields to frontend expected format
-    const mappedOrders = (orders || []).map(order => ({
+    const mappedOrders = (orders || []).map((order: any) => ({
       id: order.id,
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
