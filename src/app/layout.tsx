@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from '@/lib/AuthProvider';
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,9 +27,11 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/business_logo.PNG" />
       </head>
       <body className={inter.className}>
-        <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-          {children}
-        </div>
+        <AuthProvider>
+          <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+            {children}
+          </div>
+        </AuthProvider>
       </body>
     </html>
   );
