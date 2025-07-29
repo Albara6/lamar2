@@ -21,21 +21,33 @@ export function AuthProvider ({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+    
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (!mounted) return
+      if (error) {
+        console.error('Error getting session:', error)
+      }
       setSession(session)
       setUser(session?.user ?? null)
+      setLoading(false)
+    }).catch(err => {
+      if (!mounted) return
+      console.error('Session fetch failed:', err)
       setLoading(false)
     })
 
     // Listen for changes
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return
       setSession(session)
       setUser(session?.user ?? null)
     })
 
     return () => {
-      listener.subscription.unsubscribe()
+      mounted = false
+      listener?.subscription?.unsubscribe()
     }
   }, [])
 
