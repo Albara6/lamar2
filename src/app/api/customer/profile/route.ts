@@ -15,6 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get customer profile from customers table
     const { data: customer, error } = await supabaseAdmin
       .from('customers')
       .select('*')
@@ -26,7 +27,17 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500 })
     }
 
-    return NextResponse.json({ customer })
+    // Get phone verification status from auth.users
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(session.user.id)
+    
+    const phoneVerified = authUser?.user?.phone_confirmed_at ? true : false
+
+    return NextResponse.json({ 
+      customer: {
+        ...customer,
+        phone_verified: phoneVerified
+      }
+    })
   } catch (e) {
     console.error('Profile route error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

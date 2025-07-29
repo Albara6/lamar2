@@ -19,18 +19,26 @@ export default function AuthGate ({ children }: { children: React.ReactNode }) {
 
 function AuthModal ({ onGuest }: { onGuest: () => void }) {
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'login' | 'signup'>(() => 'login')
+  const [mode, setMode] = useState<'login' | 'signup' | 'verify-phone'>(() => 'login')
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
+  const [verificationCode, setVerificationCode] = useState('')
+  const [pendingPhone, setPendingPhone] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
 
   const submit = async () => {
     try {
       setLoading(true)
+      setError('')
       if (mode === 'login') {
         await signIn(form.email, form.password)
-      } else {
+      } else if (mode === 'signup') {
         await signUp(form)
+        // After successful signup, switch to phone verification
+        setPendingPhone(form.phone)
+        setMode('verify-phone')
+        setMessage('Account created! Please verify your phone number.')
       }
     } catch (e: any) {
       setError(e.message)
@@ -39,7 +47,96 @@ function AuthModal ({ onGuest }: { onGuest: () => void }) {
     }
   }
 
-  const disabled = loading || (mode === 'signup' && (!form.name || !form.phone)) || !form.email || !form.password
+  const verifyPhone = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await fetch('/api/auth/verify-phone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: pendingPhone, token: verificationCode })
+      })
+      
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error)
+      }
+      
+      setMessage('Phone verified! You can now skip verification at checkout.')
+      // Close modal after successful verification
+      setTimeout(() => {
+        window.location.reload() // Refresh to update auth state
+      }, 2000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const resendOTP = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await fetch('/api/auth/resend-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: pendingPhone })
+      })
+      
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error)
+      }
+      
+      setMessage('New verification code sent!')
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const skipVerification = () => {
+    // Allow user to skip phone verification for now
+    window.location.reload()
+  }
+
+  const disabled = loading || (mode === 'signup' && (!form.name || !form.phone)) || (!form.email && mode !== 'verify-phone') || (!form.password && mode !== 'verify-phone') || (mode === 'verify-phone' && !verificationCode)
+
+  if (mode === 'verify-phone') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+        <div style={{ background: 'white', padding: '2rem', borderRadius: '0.5rem', width: '100%', maxWidth: '400px' }}>
+          <h2 style={{ marginBottom: '1rem', textAlign: 'center' }}>Verify Phone Number</h2>
+          <p style={{ textAlign: 'center', marginBottom: '1rem', color: '#6b7280' }}>
+            Enter the verification code sent to {pendingPhone}
+          </p>
+          <input 
+            placeholder='Enter 6-digit code' 
+            value={verificationCode} 
+            onChange={e => setVerificationCode(e.target.value)}
+            maxLength={6}
+            style={inputStyle} 
+          />
+          {error && <p style={{ color: 'red', fontSize: '0.875rem' }}>{error}</p>}
+          {message && <p style={{ color: 'green', fontSize: '0.875rem' }}>{message}</p>}
+          <button disabled={disabled} onClick={verifyPhone} style={{ ...btnStyle, opacity: disabled ? 0.6 : 1 }}>
+            {loading ? 'Verifying...' : 'Verify Phone'}
+          </button>
+          <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+            <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={resendOTP}>
+              Didn't receive code? Resend
+            </span>
+          </div>
+          <hr style={{ margin: '1rem 0' }} />
+          <button onClick={skipVerification} style={{ ...btnStyle, background: '#6b7280' }}>
+            Skip for Now
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
@@ -54,12 +151,13 @@ function AuthModal ({ onGuest }: { onGuest: () => void }) {
         )}
         <input placeholder='Password' type='password' value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
         {error && <p style={{ color: 'red', fontSize: '0.875rem' }}>{error}</p>}
+        {message && <p style={{ color: 'green', fontSize: '0.875rem' }}>{message}</p>}
         <button disabled={disabled} onClick={submit} style={{ ...btnStyle, opacity: disabled ? 0.6 : 1 }}>{loading ? 'Please wait…' : (mode === 'login' ? 'Log In' : 'Sign Up')}</button>
         <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
           {mode === 'login' ? (
-            <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => { setMode('signup'); setError('') }}>Need an account? Sign up.</span>
+            <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => { setMode('signup'); setError(''); setMessage('') }}>Need an account? Sign up.</span>
           ) : (
-            <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => { setMode('login'); setError('') }}>Already have an account? Log in.</span>
+            <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => { setMode('login'); setError(''); setMessage('') }}>Already have an account? Log in.</span>
           )}
         </div>
         <hr style={{ margin: '1rem 0' }} />

@@ -11,13 +11,13 @@ export async function POST (request: Request) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
-    // 1. Create the user (email + password + phone)
+    // 1. Create the user with email confirmation disabled but phone confirmation enabled
     const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       phone,
-      email_confirm: false,
-      phone_confirm: false
+      email_confirm: true, // Auto-confirm email to allow login
+      phone_confirm: false // Phone needs to be verified via OTP
     })
 
     if (createError || !createdUser) {
@@ -39,7 +39,20 @@ export async function POST (request: Request) {
       return NextResponse.json({ error: 'Failed to store customer profile' }, { status: 500 })
     }
 
-    // 3. Auto-sign-in to return a session (optional)
+    // 3. Send phone verification OTP
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      phone,
+      options: {
+        channel: 'sms'
+      }
+    })
+
+    if (otpError) {
+      console.error('OTP send error:', otpError)
+      // Don't rollback user creation, just let them know to verify later
+    }
+
+    // 4. Auto-sign-in to return a session (since email is confirmed)
     const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -47,10 +60,17 @@ export async function POST (request: Request) {
 
     if (signInErr) {
       console.error('Auto sign-in failed', signInErr)
-      return NextResponse.json({ user: createdUser.user }, { status: 201 })
+      return NextResponse.json({ 
+        user: createdUser.user, 
+        message: 'Account created! Please verify your phone number.' 
+      }, { status: 201 })
     }
 
-    return NextResponse.json({ session: signInData.session, user: signInData.user }, { status: 201 })
+    return NextResponse.json({ 
+      session: signInData.session, 
+      user: signInData.user,
+      message: 'Account created! Please verify your phone number to skip verification at checkout.'
+    }, { status: 201 })
   } catch (e) {
     console.error('Signup route error:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

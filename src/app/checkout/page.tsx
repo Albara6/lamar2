@@ -96,7 +96,7 @@ export default function CheckoutPage() {
             setPhoneStep(prev => ({
               ...prev,
               phoneNumber: data.customer.phone || '',
-              isVerified: true // Skip verification for logged-in users
+              isVerified: data.customer.phone_verified || false // Use actual verification status
             }))
           }
         })
