@@ -390,39 +390,57 @@ export default function MenuPage() {
             </div>
           </div>
           
-          <button 
-            onClick={() => setShowCart(true)}
-            style={{
-              position: 'relative',
-              padding: '0.5rem',
-              color: 'white',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              borderRadius: '0.5rem'
-            }}
-          >
-            <ShoppingCart size={24} />
-            {cart.items.length > 0 && (
-              <span style={{
-                position: 'absolute',
-                top: '-4px',
-                right: '-4px',
-                backgroundColor: '#fbbf24',
-                color: '#dc2626',
-                fontSize: '0.75rem',
-                fontWeight: 'bold',
-                borderRadius: '50%',
-                width: '1.25rem',
-                height: '1.25rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                {cart.items.length}
-              </span>
-            )}
-          </button>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={() => router.push('/account')}
+              style={{
+                position: 'relative',
+                padding: '0.5rem',
+                color: 'white',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                borderRadius: '0.5rem',
+                fontSize: '0.875rem',
+                fontWeight: '500'
+              }}
+            >
+              Account
+            </button>
+            <button 
+              onClick={() => setShowCart(true)}
+              style={{
+                position: 'relative',
+                padding: '0.5rem',
+                color: 'white',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                borderRadius: '0.5rem'
+              }}
+            >
+              <ShoppingCart size={24} />
+              {cart.items.length > 0 && (
+                <span style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  backgroundColor: '#fbbf24',
+                  color: '#dc2626',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  borderRadius: '50%',
+                  width: '1.25rem',
+                  height: '1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {cart.items.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </nav>
 
