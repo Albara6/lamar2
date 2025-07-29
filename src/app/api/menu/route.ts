@@ -71,10 +71,14 @@ export async function GET() {
         })
         .map((size: any) => ({
           id: size.id,
-          menuItemId: size.menu_item_id,
+          menu_item_id: size.menu_item_id,
+          menuItemId: size.menu_item_id, // camelCase duplicate
           name: size.name,
+          price_modifier: size.price_modifier,
           priceModifier: size.price_modifier,
+          is_default: size.is_default,
           isDefault: size.is_default,
+          sort_order: size.sort_order,
           sortOrder: size.sort_order
         }))
 
@@ -123,15 +127,20 @@ export async function GET() {
         name: item.name,
         description: item.description,
         category: item.category,
-        basePrice: item.base_price, // camelCase for iOS
-        isAvailable: item.is_available, // camelCase for iOS
-        sortOrder: item.sort_order, // camelCase for iOS
+        base_price: item.base_price,
+        basePrice: item.base_price, // camelCase duplicate
+        is_available: item.is_available,
+        isAvailable: item.is_available, // camelCase duplicate
+        sort_order: item.sort_order,
+        sortOrder: item.sort_order, // camelCase duplicate
         image_url: resolveImage(item.image_storage_url, item.image_url),
         image_storage_url: resolveImage(item.image_storage_url, item.image_url),
         imageUrl: resolveImage(item.image_storage_url, item.image_url), // maintain camelCase for iOS
         imageStorageUrl: resolveImage(item.image_storage_url, item.image_url),
-        menuItemSizes: sortedSizes, // camelCase for iOS
-        menuItemModifierGroups: sortedGroups // camelCase for iOS
+        menu_item_sizes: sortedSizes,
+        menuItemSizes: sortedSizes, // camelCase duplicate
+        menu_item_modifier_groups: sortedGroups,
+        menuItemModifierGroups: sortedGroups // camelCase duplicate
       }
     })
 
