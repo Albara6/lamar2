@@ -62,7 +62,7 @@ export async function GET() {
     }
 
     // Map database fields to iOS expected camelCase format
-    const mappedMenuItems = (menuItems || []).map(item => {
+    const mappedMenuItems = (menuItems || []).map((item: any) => {
       // Sort sizes by sort_order (fallback by name)
       const sortedSizes = (item.menu_item_sizes || [])
         .sort((a: any, b: any) => {
@@ -145,7 +145,7 @@ export async function GET() {
     })
 
     // Map categories to camelCase
-    const mappedCategories = (categories || []).map(cat => ({
+    const mappedCategories = (categories || []).map((cat: any) => ({
       id: cat.id,
       name: cat.name,
       displayOrder: cat.display_order, // camelCase for iOS

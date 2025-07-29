@@ -51,7 +51,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           order: {
             id: order.id,
-            items: orderItems?.map(item => ({
+            items: orderItems?.map((item: any) => ({
               quantity: item.quantity,
               menuItem: { name: item.menu_item_name },
               selectedSize: item.size_name ? { name: item.size_name } : null,
