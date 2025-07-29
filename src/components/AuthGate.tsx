@@ -41,6 +41,43 @@ function AuthModal ({ onGuest }: { onGuest: () => void }) {
         setMessage('Account created! Please verify your phone number.')
       }
     } catch (e: any) {
+      // Check if it's an email confirmation error
+      if (e.message?.includes('Email not confirmed') || e.message?.includes('email_not_confirmed')) {
+        setError('Email not confirmed. ')
+        setMessage('Click "Fix Email Confirmation" below to resolve this.')
+      } else {
+        setError(e.message)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fixEmailConfirmation = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const response = await fetch('/api/auth/confirm-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email })
+      })
+      
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error)
+      }
+      
+      setMessage(data.message)
+      // Try login again after confirming email
+      setTimeout(async () => {
+        try {
+          await signIn(form.email, form.password)
+        } catch (e: any) {
+          setError(e.message)
+        }
+      }, 1000)
+    } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
@@ -153,6 +190,11 @@ function AuthModal ({ onGuest }: { onGuest: () => void }) {
         {error && <p style={{ color: 'red', fontSize: '0.875rem' }}>{error}</p>}
         {message && <p style={{ color: 'green', fontSize: '0.875rem' }}>{message}</p>}
         <button disabled={disabled} onClick={submit} style={{ ...btnStyle, opacity: disabled ? 0.6 : 1 }}>{loading ? 'Please wait…' : (mode === 'login' ? 'Log In' : 'Sign Up')}</button>
+        {error.includes('Email not confirmed') && mode === 'login' && (
+          <button onClick={fixEmailConfirmation} style={{ ...btnStyle, background: '#f59e0b', marginTop: '0.5rem' }}>
+            Fix Email Confirmation
+          </button>
+        )}
         <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
           {mode === 'login' ? (
             <span style={{ cursor: 'pointer', color: '#2563eb' }} onClick={() => { setMode('signup'); setError(''); setMessage('') }}>Need an account? Sign up.</span>

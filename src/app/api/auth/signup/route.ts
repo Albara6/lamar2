@@ -17,12 +17,22 @@ export async function POST (request: Request) {
       password,
       phone,
       email_confirm: true, // Auto-confirm email to allow login
-      phone_confirm: false // Phone needs to be verified via OTP
+      phone_confirm: false, // Phone needs to be verified via OTP
+      user_metadata: {
+        name: name
+      }
     })
 
     if (createError || !createdUser) {
       console.error('Signup error:', createError)
       return NextResponse.json({ error: createError?.message || 'Failed to create user' }, { status: 500 })
+    }
+
+    // 1.5. Ensure email is confirmed by updating the user
+    if (createdUser.user && !createdUser.user.email_confirmed_at) {
+      await supabaseAdmin.auth.admin.updateUserById(createdUser.user.id, {
+        email_confirm: true
+      })
     }
 
     // 2. Insert into public.customers with matching id
