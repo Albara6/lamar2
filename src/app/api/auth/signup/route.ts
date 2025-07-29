@@ -1,6 +1,35 @@
 import { NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
+// Function to format phone number to E.164 format
+function formatPhoneNumber(phone: string): string {
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '')
+  
+  // If it starts with 1 and is 11 digits, it's already US format
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `+${cleaned}`
+  }
+  
+  // If it's 10 digits, assume US and add +1
+  if (cleaned.length === 10) {
+    return `+1${cleaned}`
+  }
+  
+  // If it already starts with country code but no +, add +
+  if (cleaned.length > 10 && !phone.startsWith('+')) {
+    return `+${cleaned}`
+  }
+  
+  // If it already has +, return as is
+  if (phone.startsWith('+')) {
+    return phone
+  }
+  
+  // Default: assume US and add +1
+  return `+1${cleaned}`
+}
+
 // POST /api/auth/signup
 // body: { name, email, phone, password }
 export async function POST (request: Request) {
@@ -11,11 +40,19 @@ export async function POST (request: Request) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
+    // Format phone number to E.164 format
+    const formattedPhone = formatPhoneNumber(phone)
+    
+    // Validate phone number format
+    if (!formattedPhone.match(/^\+[1-9]\d{1,14}$/)) {
+      return NextResponse.json({ error: 'Invalid phone number format. Please use a valid phone number.' }, { status: 400 })
+    }
+
     // 1. Create the user with email confirmation disabled but phone confirmation enabled
     const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      phone,
+      phone: formattedPhone,
       email_confirm: true, // Auto-confirm email to allow login
       phone_confirm: false, // Phone needs to be verified via OTP
       user_metadata: {
@@ -40,7 +77,7 @@ export async function POST (request: Request) {
       id: createdUser.user?.id,
       name,
       email,
-      phone
+      phone: formattedPhone
     })
     if (insertError) {
       console.error('Customer insert error:', insertError)
@@ -51,7 +88,7 @@ export async function POST (request: Request) {
 
     // 3. Send phone verification OTP
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      phone,
+      phone: formattedPhone,
       options: {
         channel: 'sms'
       }

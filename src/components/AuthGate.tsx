@@ -184,7 +184,12 @@ function AuthModal ({ onGuest }: { onGuest: () => void }) {
         )}
         <input placeholder='Email' type='email' value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} style={inputStyle} />
         {mode === 'signup' && (
-          <input placeholder='Phone' value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} style={inputStyle} />
+          <input 
+            placeholder='Phone (e.g., 123-456-7890)' 
+            value={form.phone} 
+            onChange={e => setForm({ ...form, phone: e.target.value })} 
+            style={inputStyle} 
+          />
         )}
         <input placeholder='Password' type='password' value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} style={inputStyle} />
         {error && <p style={{ color: 'red', fontSize: '0.875rem' }}>{error}</p>}
