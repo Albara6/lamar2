@@ -28,7 +28,7 @@ export async function GET() {
     }
 
     // Map database fields to frontend expected fields
-    const mappedMenuItems = (menuItems || []).map(item => ({
+    const mappedMenuItems = (menuItems || []).map((item: any) => ({
       id: item.id,
       name: item.name,
       description: item.description,
