@@ -7,25 +7,16 @@ export async function POST(request: Request) {
     const body = await request.json()
     console.log('Incoming POS order request body:', JSON.stringify(body, null, 2));
     await writeFile('/tmp/last-order-body.json', JSON.stringify(body, null, 2))
-    const { customer, paymentMethod, items, total, notes, isPOSOrder, isPaid, restaurant, pickupType } = body
+    const { customer, paymentMethod, items, total, notes, isPOSOrder, isPaid } = body
 
     // --------------------------------------------------------------
     // BUSINESS HOURS / ACCEPTING ORDERS CHECK (menu orders only)
     // --------------------------------------------------------------
     try {
-      // Fetch the latest business settings for the specific restaurant
-      const restaurantId = restaurant?.id || null
-      if (!restaurantId && !isPOSOrder) {
-        return NextResponse.json(
-          { error: 'Restaurant ID is required for menu orders' },
-          { status: 400 }
-        )
-      }
-
+      // Fetch the latest business settings
       const { data: bizSettings, error: bizError } = await supabaseAdmin
         .from('business_settings')
         .select('*')
-        .eq('restaurant_id', restaurantId)
         .single()
 
       if (bizError) {
@@ -208,12 +199,10 @@ export async function POST(request: Request) {
         .from('orders')
         .insert({
           customer_id: customerId,
-          restaurant_id: restaurant?.id || null,
           total_amount: total,
           payment_method: 'cash',
           payment_status: (isPOSOrder && isPaid) ? 'paid' : 'pending',
           order_status: 'pending',
-          pickup_type: pickupType || (isPOSOrder ? 'pickup_inside' : 'pickup_inside'),
           phone_verified: isPOSOrder ? false : true,
           customer_name: customer.name,
           customer_email: customer.email,
@@ -226,12 +215,10 @@ export async function POST(request: Request) {
       if (orderError) {
         console.error('Error creating order:', orderError, {
           customer_id: customerId,
-          restaurant_id: restaurant?.id || null,
           total_amount: total,
           payment_method: 'cash',
           payment_status: (isPOSOrder && isPaid) ? 'paid' : 'pending',
           order_status: 'pending',
-          pickup_type: pickupType || (isPOSOrder ? 'pickup_inside' : 'pickup_inside'),
           phone_verified: isPOSOrder ? false : true,
           customer_name: customer.name,
           customer_email: customer.email,

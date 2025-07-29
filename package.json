@@ -26,7 +26,8 @@
     "stripe": "^14.14.0",
     "twilio": "^4.20.0",
     "uuid": "^9.0.1",
-    "zustand": "^4.5.0"
+    "zustand": "^4.5.0",
+    "next-pwa": "^5.7.6"
   },
   "devDependencies": {
     "@swc/cli": "^0.7.8",

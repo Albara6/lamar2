@@ -1,0 +1,21 @@
+{
+  "name": "Crazy Chicken Menu",
+  "short_name": "CrazyChicken",
+  "description": "Order delicious burgers, phillys, and chicken from Crazy Chicken.",
+  "start_url": "/menu",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#dc2626",
+  "icons": [
+    {
+      "src": "/business_logo.PNG",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/business_logo.PNG",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+} 
