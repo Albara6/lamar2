@@ -22,7 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     for (const emp of (employees as any[]) || []) {
-      if (await bcrypt.compare(pin, (emp as any).code_hash)) {
+      const stored = ((emp as any).code_hash || '').trim()
+      let ok = false
+      if (/^\$2[aby]\$/.test(stored)) {
+        ok = await bcrypt.compare(pin, stored)
+      } else if (/^\d{4}$/.test(stored)) {
+        ok = pin === stored
+      }
+      if (ok) {
         return NextResponse.json({
           employee: { id: (emp as any).id, name: (emp as any).name }
         })

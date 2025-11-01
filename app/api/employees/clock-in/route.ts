@@ -10,7 +10,14 @@ async function getEmployeeByCode(code: string) {
     .select('*')
     .eq('active', true)
   for (const e of (employees as any[]) || []) {
-    if (await bcrypt.compare(code, (e as any).code_hash)) return e as any
+    const stored = ((e as any).code_hash || '').trim()
+    let ok = false
+    if (/^\$2[aby]\$/.test(stored)) {
+      ok = await bcrypt.compare(code, stored)
+    } else if (/^\d{4}$/.test(stored)) {
+      ok = code === stored
+    }
+    if (ok) return e as any
   }
   return null
 }

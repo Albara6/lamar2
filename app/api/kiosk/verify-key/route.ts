@@ -21,10 +21,14 @@ export async function POST(request: NextRequest) {
     }
 
     for (const k of (keys as any[]) || []) {
-      const match = await bcrypt.compare(key, (k as any).key_hash)
-      if (match) {
-        return NextResponse.json({ success: true })
+      const stored = ((k as any).key_hash || '').trim()
+      let ok = false
+      if (/^\$2[aby]\$/.test(stored)) {
+        ok = await bcrypt.compare(key, stored)
+      } else {
+        ok = key.trim() === stored
       }
+      if (ok) return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: 'Invalid key' }, { status: 401 })
