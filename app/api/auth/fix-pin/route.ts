@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     // Update all active users to use this hash
     const { data, error } = await supabaseAdmin
       .from('users')
-      .update({ pin_hash: correctHash })
+      .update({ pin_hash: correctHash } as any)
       .eq('active', true)
       .select()
     
