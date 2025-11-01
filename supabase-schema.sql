@@ -333,3 +333,72 @@ INSERT INTO vendors (name, type) VALUES
 ('Maintenance', 'vendor'),
 ('Supplies', 'vendor');
 
+-- Employees for clock-in/out
+CREATE TABLE IF NOT EXISTS employees (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    hourly_rate DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Time entries for clocking in/out
+CREATE TABLE IF NOT EXISTS time_entries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES employees(id),
+    clock_in TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    clock_out TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Employee logged expenses (deduct from paycheck)
+CREATE TABLE IF NOT EXISTS employee_expenses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES employees(id),
+    amount DECIMAL(10, 2) NOT NULL CHECK (amount > 0),
+    description TEXT NOT NULL,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Kiosk USB key registry (verify secrets from uploaded file)
+CREATE TABLE IF NOT EXISTS kiosk_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
+    active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_time_entries_employee_id ON time_entries(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_expenses_employee_id ON employee_expenses(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(active);
+
+-- Triggers
+CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON employees
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_time_entries_updated_at BEFORE UPDATE ON time_entries
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Enable RLS
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE kiosk_keys ENABLE ROW LEVEL SECURITY;
+
+-- Basic policies (tighten in production)
+CREATE POLICY "Employees readable by admin" ON employees FOR SELECT USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Time entries readable by admin" ON time_entries FOR SELECT USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Employee expenses readable by admin" ON employee_expenses FOR SELECT USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+

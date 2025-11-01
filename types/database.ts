@@ -347,6 +347,113 @@ export interface Database {
           changed_at?: string
         }
       }
+      employees: {
+        Row: {
+          id: string
+          name: string
+          code_hash: string
+          hourly_rate: number
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          code_hash: string
+          hourly_rate?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          code_hash?: string
+          hourly_rate?: number
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      time_entries: {
+        Row: {
+          id: string
+          employee_id: string
+          clock_in: string
+          clock_out: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          clock_in?: string
+          clock_out?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          clock_in?: string
+          clock_out?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      employee_expenses: {
+        Row: {
+          id: string
+          employee_id: string
+          amount: number
+          description: string
+          timestamp: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          amount: number
+          description: string
+          timestamp?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          amount?: number
+          description?: string
+          timestamp?: string
+          created_at?: string
+        }
+      }
+      kiosk_keys: {
+        Row: {
+          id: string
+          name: string
+          key_hash: string
+          active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          key_hash: string
+          active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          key_hash?: string
+          active?: boolean
+          created_at?: string
+        }
+      }
     }
   }
 }
