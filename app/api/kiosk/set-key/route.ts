@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
     const key_hash = await bcrypt.hash(secret, 10)
 
     // deactivate old
-    await supabaseAdmin.from('kiosk_keys').update({ active: false }).eq('active', true)
+    await (supabaseAdmin as any).from('kiosk_keys').update({ active: false } as any).eq('active', true)
     // insert new
-    const { error } = await supabaseAdmin.from('kiosk_keys').insert({ name: name || 'Default', key_hash, active: true })
+    const { error } = await (supabaseAdmin as any).from('kiosk_keys').insert({ name: name || 'Default', key_hash, active: true } as any)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json({ success: true })

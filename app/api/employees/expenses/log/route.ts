@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     const { error: insertError } = await supabaseAdmin
       .from('employee_expenses')
-      .insert({ employee_id: employee.id, amount: amt, description })
+      .insert({ employee_id: employee.id, amount: amt, description } as any)
 
     if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
 

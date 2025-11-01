@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No active shift' }, { status: 400 })
     }
 
-    const { error: updateError } = await supabaseAdmin
+    const entry: any = Array.isArray(openEntries) && openEntries.length > 0 ? (openEntries as any)[0] : null
+    const { error: updateError } = await (supabaseAdmin as any)
       .from('time_entries')
-      .update({ clock_out: new Date().toISOString() })
-      .eq('id', openEntries[0].id)
+      .update({ clock_out: new Date().toISOString() } as any)
+      .eq('id', entry.id)
 
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
