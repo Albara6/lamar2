@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { User } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export default function SafePanelHome() {
   const [user, setUser] = useState<User | null>(null)
   const router = useRouter()

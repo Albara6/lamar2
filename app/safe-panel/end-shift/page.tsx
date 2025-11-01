@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@/lib/auth'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 export default function EndShift() {
   const [user, setUser] = useState<User | null>(null)
   const [startingCash, setStartingCash] = useState('')

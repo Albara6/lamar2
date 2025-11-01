@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { calculateBankVariance } from '@/lib/calculations'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 export default function Reconciliation() {
   const [period, setPeriod] = useState<'week' | 'month' | 'custom'>('month')
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))

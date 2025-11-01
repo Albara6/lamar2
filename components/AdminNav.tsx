@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 export default function AdminNav() {
   const pathname = usePathname()
+  const router = useRouter()
 
   const navItems = [
     { href: '/admin', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -17,6 +18,11 @@ export default function AdminNav() {
     { href: '/admin/audit', label: 'Audit Log', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   ]
 
+  const handleLogout = () => {
+    sessionStorage.removeItem('admin_user')
+    router.push('/admin/login')
+  }
+
   return (
     <nav className="bg-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4">
@@ -26,12 +32,20 @@ export default function AdminNav() {
               Gas Station Admin
             </Link>
           </div>
-          <Link
-            href="/"
-            className="text-gray-600 hover:text-gray-900 font-medium"
-          >
-            ← Exit Admin
-          </Link>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={handleLogout}
+              className="text-red-600 hover:text-red-700 font-medium"
+            >
+              Logout
+            </button>
+            <Link
+              href="/"
+              className="text-gray-600 hover:text-gray-900 font-medium"
+            >
+              ← Exit Admin
+            </Link>
+          </div>
         </div>
       </div>
       <div className="border-t border-gray-200">

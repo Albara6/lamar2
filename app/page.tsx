@@ -26,7 +26,7 @@ export default function Home() {
             </div>
           </Link>
 
-          <Link href="/admin" className="card hover:shadow-xl transition-shadow cursor-pointer group">
+          <Link href="/admin/login" className="card hover:shadow-xl transition-shadow cursor-pointer group">
             <div className="text-center">
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-primary-200 transition-colors">
                 <svg className="w-10 h-10 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

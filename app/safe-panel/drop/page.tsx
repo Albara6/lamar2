@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import { generateReceiptNumber } from '@/lib/calculations'
 import type { User } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export default function SafeDrop() {
   const [user, setUser] = useState<User | null>(null)
   const [amount, setAmount] = useState('')

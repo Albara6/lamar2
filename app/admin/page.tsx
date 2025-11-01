@@ -1,11 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { calculateSafeBalance } from '@/lib/calculations'
 import { format } from 'date-fns'
+import type { User } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
 
 export default function AdminDashboard() {
+  const [user, setUser] = useState<User | null>(null)
   const [safeBalance, setSafeBalance] = useState<number>(0)
   const [todayDrops, setTodayDrops] = useState<number>(0)
   const [todayExpenses, setTodayExpenses] = useState<number>(0)
@@ -13,8 +18,23 @@ export default function AdminDashboard() {
   const [todayDeposits, setTodayDeposits] = useState<number>(0)
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
+    // Check authentication
+    const userStr = sessionStorage.getItem('admin_user')
+    if (!userStr) {
+      router.push('/admin/login')
+      return
+    }
+    
+    const userData = JSON.parse(userStr) as User
+    if (userData.role !== 'admin' && userData.role !== 'manager') {
+      router.push('/admin/login')
+      return
+    }
+    
+    setUser(userData)
     loadDashboardData()
   }, [])
 

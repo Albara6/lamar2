@@ -10,33 +10,28 @@ export interface User {
 
 export async function verifyPin(pin: string): Promise<User | null> {
   try {
-    // Get all active users
-    const { data: users, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('active', true)
+    console.log('Client: Verifying PIN via API...')
+    
+    // Call server-side API to verify PIN (bypasses RLS)
+    const response = await fetch('/api/auth/verify-pin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ pin }),
+    })
 
-    if (error || !users) {
-      console.error('Error fetching users:', error)
+    if (!response.ok) {
+      const error = await response.json()
+      console.error('Client: PIN verification failed:', error)
       return null
     }
 
-    // Check PIN against each user
-    for (const user of users) {
-      const isValid = await bcrypt.compare(pin, (user as any).pin_hash)
-      if (isValid) {
-        return {
-          id: (user as any).id,
-          name: (user as any).name,
-          role: (user as any).role,
-          active: (user as any).active,
-        }
-      }
-    }
-
-    return null
+    const data = await response.json()
+    console.log('Client: PIN verified successfully:', data.user.name)
+    return data.user
   } catch (error) {
-    console.error('Error verifying PIN:', error)
+    console.error('Client: Error verifying PIN:', error)
     return null
   }
 }

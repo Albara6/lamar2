@@ -7,7 +7,7 @@ import type { User } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
-export default function SafePanelLogin() {
+export default function AdminLogin() {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,9 +38,15 @@ export default function SafePanelLogin() {
       const user = await verifyPin(pin)
       
       if (user) {
-        // Store user in session storage
-        sessionStorage.setItem('safePanel_user', JSON.stringify(user))
-        router.push('/safe-panel/home')
+        // Only allow admin and manager roles
+        if (user.role === 'admin' || user.role === 'manager') {
+          // Store user in session storage
+          sessionStorage.setItem('admin_user', JSON.stringify(user))
+          router.push('/admin')
+        } else {
+          setError('Access denied. Admin or Manager role required.')
+          setPin('')
+        }
       } else {
         setError('Invalid PIN. Please try again.')
         setPin('')
@@ -54,16 +60,16 @@ export default function SafePanelLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-600 to-primary-800 flex items-center justify-center kiosk-mode">
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
       <div className="max-w-md w-full mx-4">
         <div className="text-center mb-8">
           <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-xl">
-            <svg className="w-12 h-12 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">Safe Panel</h1>
-          <p className="text-primary-100 text-lg">Enter your 4-digit PIN</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Admin Dashboard</h1>
+          <p className="text-blue-100 text-lg">Enter your 4-digit PIN</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
@@ -75,7 +81,7 @@ export default function SafePanelLogin() {
                   key={i}
                   className={`w-16 h-16 rounded-full border-4 flex items-center justify-center text-2xl font-bold ${
                     pin.length > i
-                      ? 'bg-primary-600 border-primary-600 text-white'
+                      ? 'bg-blue-600 border-blue-600 text-white'
                       : 'bg-gray-100 border-gray-300 text-transparent'
                   }`}
                 >
@@ -118,7 +124,7 @@ export default function SafePanelLogin() {
               onClick={handleSubmit}
               className={`touch-button h-20 text-xl ${
                 pin.length === 4 && !loading
-                  ? 'bg-primary-600 hover:bg-primary-700 text-white'
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
               disabled={pin.length !== 4 || loading}
@@ -131,7 +137,7 @@ export default function SafePanelLogin() {
         <div className="text-center mt-6">
           <button
             onClick={() => router.push('/')}
-            className="text-white hover:text-primary-100 text-lg"
+            className="text-white hover:text-blue-100 text-lg"
           >
             ← Back to Home
           </button>

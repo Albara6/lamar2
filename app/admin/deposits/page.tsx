@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 export default function Deposits() {
   const [deposits, setDeposits] = useState<any[]>([])
   const [vendors, setVendors] = useState<any[]>([])

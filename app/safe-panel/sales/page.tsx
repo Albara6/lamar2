@@ -7,6 +7,8 @@ import { calculateCashSalesForDate } from '@/lib/calculations'
 import type { User } from '@/lib/auth'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 export default function RecordSales() {
   const [user, setUser] = useState<User | null>(null)
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'))

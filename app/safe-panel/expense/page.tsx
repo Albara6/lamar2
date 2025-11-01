@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import type { User } from '@/lib/auth'
 import { format } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
 interface Vendor {
   id: string
   name: string
