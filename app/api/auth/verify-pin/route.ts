@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const { pin: pinRaw } = await request.json()
     const pin = typeof pinRaw === 'string' ? pinRaw.trim() : String(pinRaw ?? '').trim()
 
-    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    if (!pin || pin.length !== 6 || !/^\d{6}$/.test(pin)) {
       return NextResponse.json(
         { error: 'Invalid PIN format' },
         { status: 400 }
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       if (/^\$2[aby]\$/.test(storedHash)) {
         isValid = await bcrypt.compare(pin, storedHash)
         console.log(`Server: bcrypt.compare result: ${isValid}`)
-      } else if (/^\d{4}$/.test(storedHash)) {
+      } else if (/^\d{6}$/.test(storedHash)) {
         // Fallback: support plaintext 4-digit pins if mistakenly stored unhashed
         isValid = pin === storedHash
         console.log(`Server: Plaintext comparison result: ${isValid}`)

@@ -14,7 +14,7 @@ export default function AdminLogin() {
   const router = useRouter()
 
   const handleNumberClick = (num: string) => {
-    if (pin.length < 4) {
+    if (pin.length < 6) {
       setPin(pin + num)
       setError('')
     }
@@ -26,8 +26,8 @@ export default function AdminLogin() {
   }
 
   const handleSubmit = async () => {
-    if (pin.length !== 4) {
-      setError('Please enter a 4-digit PIN')
+    if (pin.length !== 6) {
+      setError('Please enter a 6-digit PIN')
       return
     }
 
@@ -69,14 +69,14 @@ export default function AdminLogin() {
             </svg>
           </div>
           <h1 className="text-4xl font-bold text-white mb-2">Admin Dashboard</h1>
-          <p className="text-blue-100 text-lg">Enter your 4-digit PIN</p>
+          <p className="text-blue-100 text-lg">Enter your 6-digit PIN</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           {/* PIN Display */}
           <div className="mb-8">
             <div className="flex justify-center gap-4 mb-4">
-              {[0, 1, 2, 3].map((i) => (
+              {[0, 1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
                   className={`w-16 h-16 rounded-full border-4 flex items-center justify-center text-2xl font-bold ${
@@ -123,11 +123,11 @@ export default function AdminLogin() {
             <button
               onClick={handleSubmit}
               className={`touch-button h-20 text-xl ${
-                pin.length === 4 && !loading
+                pin.length === 6 && !loading
                   ? 'bg-blue-600 hover:bg-blue-700 text-white'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
-              disabled={pin.length !== 4 || loading}
+              disabled={pin.length !== 6 || loading}
             >
               {loading ? 'Verifying...' : 'Enter'}
             </button>
