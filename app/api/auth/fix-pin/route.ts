@@ -13,17 +13,26 @@ export async function POST(request: NextRequest) {
     
     console.log('Generated new hash for PIN 1234:', correctHash)
     
-    // Update all active users to use this hash
-    const { data, error } = await supabaseAdmin
+    // Get all active users first
+    const { data: users, error: fetchError } = await supabaseAdmin
       .from('users')
-      .update({ pin_hash: correctHash } as any)
+      .select('*')
       .eq('active', true)
-      .select()
     
-    if (error) {
-      console.error('Error updating users:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (fetchError) {
+      console.error('Error fetching users:', fetchError)
+      return NextResponse.json({ error: fetchError.message }, { status: 500 })
     }
+    
+    // Update each user individually
+    const updatePromises = (users || []).map((user: any) => 
+      supabaseAdmin
+        .from('users')
+        .update({ pin_hash: correctHash })
+        .eq('id', user.id)
+    )
+    
+    await Promise.all(updatePromises)
     
     // Test the new hash
     const testResult = await bcrypt.compare(pin, correctHash)
@@ -31,10 +40,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'All active users updated with correct PIN hash for 1234',
-      users_updated: data?.length || 0,
+      users_updated: users?.length || 0,
       new_hash: correctHash,
       test_passed: testResult,
-      users: data?.map((u: any) => ({ name: u.name, role: u.role }))
+      users: users?.map((u: any) => ({ name: u.name, role: u.role }))
     })
   } catch (error: any) {
     console.error('Error in fix-pin:', error)
