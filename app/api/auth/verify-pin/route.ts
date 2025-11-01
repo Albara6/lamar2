@@ -47,17 +47,24 @@ export async function POST(request: NextRequest) {
       const userData = user as any
       console.log(`Server: Checking PIN for user: ${userData.name} (${userData.role})`)
       const storedHash = (userData.pin_hash ?? '').trim()
+      
+      console.log(`Server: PIN entered: "${pin}" (length: ${pin.length})`)
+      console.log(`Server: Stored hash: "${storedHash.substring(0, 30)}..." (length: ${storedHash.length})`)
+      console.log(`Server: Hash format check: ${/^\$2[aby]\$/.test(storedHash) ? 'bcrypt' : 'other'}`)
 
       let isValid = false
       // If stored value looks like a bcrypt hash, use bcrypt
       if (/^\$2[aby]\$/.test(storedHash)) {
         isValid = await bcrypt.compare(pin, storedHash)
+        console.log(`Server: bcrypt.compare result: ${isValid}`)
       } else if (/^\d{4}$/.test(storedHash)) {
         // Fallback: support plaintext 4-digit pins if mistakenly stored unhashed
         isValid = pin === storedHash
+        console.log(`Server: Plaintext comparison result: ${isValid}`)
       } else {
         // Unsupported format; skip
         isValid = false
+        console.log(`Server: Unsupported hash format`)
       }
       
       if (isValid) {
