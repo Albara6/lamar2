@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AdminNav from '@/components/AdminNav'
 
@@ -13,15 +13,30 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const [authorized, setAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem('admin_user')
       if (!stored) {
+        setAuthorized(false)
         router.replace('/admin/login')
+        return
       }
-    } catch {}
+      setAuthorized(true)
+    } catch {
+      setAuthorized(false)
+      router.replace('/admin/login')
+    }
   }, [router])
+
+  if (authorized === null) {
+    return <div className="min-h-screen bg-gray-50" />
+  }
+
+  if (!authorized) {
+    return null
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

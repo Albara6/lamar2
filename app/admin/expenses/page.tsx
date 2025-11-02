@@ -21,15 +21,13 @@ export default function Expenses() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const { data: expensesData } = await supabase
-        .from('expenses')
-        .select('*, vendors(name), users(name)')
-        .order('date', { ascending: false })
+      const res = await fetch('/api/expenses/list')
+      const json = await res.json()
 
       const vendorsRes = await fetch('/api/vendors')
       const vendorsJson = await vendorsRes.json()
 
-      setExpenses(expensesData || [])
+      setExpenses(res.ok ? (json.expenses || []) : [])
       setVendors(vendorsRes.ok ? (vendorsJson.vendors || []) : [])
     } catch (error) {
       console.error('Error loading data:', error)
