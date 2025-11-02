@@ -9,6 +9,8 @@ export default function TeamPortal() {
   const [loading, setLoading] = useState(false)
   const [entries, setEntries] = useState<any[]>([])
   const [expenses, setExpenses] = useState<any[]>([])
+  const [weekStart, setWeekStart] = useState<string>('')
+  const [weekEnd, setWeekEnd] = useState<string>('')
 
   const handleNumberClick = (num: string) => {
     if (employee) return
@@ -48,6 +50,55 @@ export default function TeamPortal() {
     run()
   }, [employee])
 
+  useEffect(() => {
+    // Initialize to current Monday-Sunday
+    const today = new Date()
+    const day = today.getDay() // 0..6 (Sun..Sat)
+    const diffToMonday = (day + 6) % 7
+    const start = new Date(today)
+    start.setDate(today.getDate() - diffToMonday)
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    const toIso = (d: Date) => d.toISOString().slice(0, 10)
+    setWeekStart(toIso(start))
+    setWeekEnd(toIso(end))
+  }, [])
+
+  const changeWeek = (deltaWeeks: number) => {
+    if (!weekStart || !weekEnd) return
+    const start = new Date(weekStart)
+    const end = new Date(weekEnd)
+    start.setDate(start.getDate() + deltaWeeks * 7)
+    end.setDate(end.getDate() + deltaWeeks * 7)
+    const toIso = (d: Date) => d.toISOString().slice(0, 10)
+    setWeekStart(toIso(start))
+    setWeekEnd(toIso(end))
+  }
+
+  const filteredEntries = entries.filter(e => {
+    if (!e.clock_in) return false
+    const t = new Date(e.clock_in).getTime()
+    const s = new Date(weekStart).getTime()
+    const eend = new Date(weekEnd); eend.setDate(eend.getDate()+1)
+    const ee = eend.getTime()
+    return t >= s && t < ee
+  })
+  const filteredExpenses = expenses.filter(x => {
+    const t = new Date(x.timestamp).getTime()
+    const s = new Date(weekStart).getTime()
+    const eend = new Date(weekEnd); eend.setDate(eend.getDate()+1)
+    const ee = eend.getTime()
+    return t >= s && t < ee
+  })
+
+  const weeklyHours = filteredEntries.reduce((sum, e) => {
+    if (!e.clock_in || !e.clock_out) return sum
+    const ci = new Date(e.clock_in).getTime()
+    const co = new Date(e.clock_out).getTime()
+    const h = Math.max(0, (co - ci) / 3600000)
+    return sum + h
+  }, 0)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-6">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-8">
@@ -75,6 +126,15 @@ export default function TeamPortal() {
             <h1 className="text-2xl font-bold mb-2">Welcome, {employee.name}</h1>
             <p className="text-gray-600 mb-6">Here are your recent hours and expenses.</p>
 
+            <div className="mb-4 flex items-end gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Week</label>
+                <div className="text-sm">{weekStart} → {weekEnd}</div>
+              </div>
+              <button onClick={()=>changeWeek(-1)} className="btn-secondary">← Previous</button>
+              <button onClick={()=>changeWeek(1)} className="btn-secondary">Next →</button>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <h2 className="font-semibold mb-2">Recent Time Entries</h2>
@@ -84,7 +144,7 @@ export default function TeamPortal() {
                       <tr className="bg-gray-50"><th className="p-2 text-left">Clock In</th><th className="p-2 text-left">Clock Out</th><th className="p-2 text-right">Hours</th></tr>
                     </thead>
                     <tbody>
-                      {entries.map((e, i) => {
+                      {filteredEntries.map((e, i) => {
                         const start = e.clock_in ? new Date(e.clock_in) : null
                         const end = e.clock_out ? new Date(e.clock_out) : null
                         const hours = start && end ? Math.max(0, (end.getTime()-start.getTime())/3600000) : 0
@@ -96,7 +156,7 @@ export default function TeamPortal() {
                           </tr>
                         )
                       })}
-                      {entries.length===0 && <tr><td className="p-2" colSpan={3}>No entries</td></tr>}
+                      {filteredEntries.length===0 && <tr><td className="p-2" colSpan={3}>No entries</td></tr>}
                     </tbody>
                   </table>
                 </div>
@@ -109,18 +169,22 @@ export default function TeamPortal() {
                       <tr className="bg-gray-50"><th className="p-2 text-left">Time</th><th className="p-2 text-left">Description</th><th className="p-2 text-right">Amount</th></tr>
                     </thead>
                     <tbody>
-                      {expenses.map((x, i) => (
+                      {filteredExpenses.map((x, i) => (
                         <tr key={i} className="border-t">
                           <td className="p-2">{new Date(x.timestamp).toLocaleString()}</td>
                           <td className="p-2">{x.description}</td>
                           <td className="p-2 text-right">${x.amount?.toFixed?.(2) ?? x.amount}</td>
                         </tr>
                       ))}
-                      {expenses.length===0 && <tr><td className="p-2" colSpan={3}>No expenses</td></tr>}
+                      {filteredExpenses.length===0 && <tr><td className="p-2" colSpan={3}>No expenses</td></tr>}
                     </tbody>
                   </table>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 border rounded">
+              <div className="text-sm text-blue-800">Total hours this week: <b>{weeklyHours.toFixed(2)}</b></div>
             </div>
           </div>
         )}

@@ -16,19 +16,22 @@ export async function GET(request: NextRequest) {
 
     const startDate = new Date(start)
     const endDate = new Date(end)
+    // Use [start, endExclusive) range to include entire end day
+    const endExclusive = new Date(endDate)
+    endExclusive.setDate(endExclusive.getDate() + 1)
 
     const [{ data: employees }, { data: entries }, { data: exps }] = await Promise.all([
       (supabaseAdmin as any).from('employees').select('*').eq('active', true),
       (supabaseAdmin as any)
         .from('time_entries')
         .select('*')
-        .gte('clock_in', start)
-        .lte('clock_in', end),
+        .gte('clock_in', startDate.toISOString())
+        .lt('clock_in', endExclusive.toISOString()),
       (supabaseAdmin as any)
         .from('employee_expenses')
         .select('*')
-        .gte('timestamp', start)
-        .lte('timestamp', end),
+        .gte('timestamp', startDate.toISOString())
+        .lt('timestamp', endExclusive.toISOString()),
     ])
 
     const employeeMap: Record<string, any> = {}
