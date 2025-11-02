@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import AdminNav from '@/components/AdminNav'
 
 export const dynamic = 'force-dynamic'
@@ -13,10 +13,15 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [authorized, setAuthorized] = useState<boolean | null>(null)
 
   useEffect(() => {
     try {
+      if (pathname === '/admin/login') {
+        setAuthorized(true)
+        return
+      }
       const stored = sessionStorage.getItem('admin_user')
       if (!stored) {
         setAuthorized(false)
@@ -28,7 +33,7 @@ export default function AdminLayout({
       setAuthorized(false)
       router.replace('/admin/login')
     }
-  }, [router])
+  }, [router, pathname])
 
   if (authorized === null) {
     return <div className="min-h-screen bg-gray-50" />
