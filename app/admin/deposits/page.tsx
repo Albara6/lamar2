@@ -60,10 +60,10 @@ export default function Deposits() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        vendor_id: newDeposit.vendor_id,
-        amount: parseFloat(newDeposit.amount),
-        date: newDeposit.date,
-        notes: newDeposit.notes || null,
+      vendor_id: newDeposit.vendor_id,
+      amount: parseFloat(newDeposit.amount),
+      date: newDeposit.date,
+      notes: newDeposit.notes || null,
         created_by_user_id: adminUser.id,
       })
     })

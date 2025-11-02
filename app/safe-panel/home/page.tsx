@@ -28,7 +28,7 @@ export default function SafePanelHome() {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   }
 
-  const isManager = user.role === 'manager' || user.role === 'admin'
+  const isAdmin = user.role === 'admin'
 
   const menuItems = [
     {
@@ -58,15 +58,7 @@ export default function SafePanelHome() {
       href: '/safe-panel/sales',
       color: 'bg-blue-600 hover:bg-blue-700',
     },
-    {
-      title: 'Withdraw from Safe',
-      description: 'Manager/Admin approval required',
-      icon: (
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
-      ),
-      href: '/safe-panel/withdrawal',
-      color: 'bg-yellow-600 hover:bg-yellow-700',
-    },
+    
     {
       title: 'End of Shift',
       description: 'Close shift and reconcile',
@@ -78,9 +70,9 @@ export default function SafePanelHome() {
     },
   ]
 
-  const managerItems = [
+  const adminItems = [
     {
-      title: 'Manager Withdrawal',
+      title: 'Admin Withdrawal',
       description: 'Withdraw from safe',
       icon: (
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
@@ -137,12 +129,12 @@ export default function SafePanelHome() {
           ))}
         </div>
 
-        {/* Manager-only features */}
-        {isManager && (
+        {/* Admin-only features */}
+        {isAdmin && (
           <>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">Manager Functions</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Admin Functions</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {managerItems.map((item) => (
+              {adminItems.map((item) => (
                 <button
                   key={item.title}
                   onClick={() => router.push(item.href)}

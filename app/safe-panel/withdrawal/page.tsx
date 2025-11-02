@@ -32,6 +32,12 @@ export default function ManagerWithdrawal() {
       return
     }
     const userData = JSON.parse(userStr)
+    // Only admins may access this page
+    if (userData.role !== 'admin') {
+      alert('Access denied. Admin role required.')
+      router.push('/safe-panel/home')
+      return
+    }
     setUser(userData)
     loadSafeBalance()
   }, [router])
