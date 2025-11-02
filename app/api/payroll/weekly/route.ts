@@ -25,11 +25,13 @@ export async function GET(request: NextRequest) {
       (supabaseAdmin as any)
         .from('time_entries')
         .select('*')
+        .is('paycheck_id', null)
         .gte('clock_in', startDate.toISOString())
         .lt('clock_in', endExclusive.toISOString()),
       (supabaseAdmin as any)
         .from('employee_expenses')
         .select('*')
+        .is('paycheck_id', null)
         .gte('timestamp', startDate.toISOString())
         .lt('timestamp', endExclusive.toISOString()),
       (supabaseAdmin as any)
