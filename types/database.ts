@@ -454,6 +454,44 @@ export interface Database {
           created_at?: string
         }
       }
+      employee_paychecks: {
+        Row: {
+          id: string
+          employee_id: string
+          week_start: string
+          week_end: string
+          hours: number
+          hourly_rate: number
+          gross_pay: number
+          expenses_total: number
+          net_pay: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          week_start: string
+          week_end: string
+          hours: number
+          hourly_rate: number
+          gross_pay: number
+          expenses_total: number
+          net_pay: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          week_start?: string
+          week_end?: string
+          hours?: number
+          hourly_rate?: number
+          gross_pay?: number
+          expenses_total?: number
+          net_pay?: number
+          created_at?: string
+        }
+      }
     }
   }
 }

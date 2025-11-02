@@ -379,6 +379,22 @@ CREATE INDEX IF NOT EXISTS idx_time_entries_employee_id ON time_entries(employee
 CREATE INDEX IF NOT EXISTS idx_employee_expenses_employee_id ON employee_expenses(employee_id);
 CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(active);
 
+-- Employee paychecks (weekly summary with deductions)
+CREATE TABLE IF NOT EXISTS employee_paychecks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID NOT NULL REFERENCES employees(id),
+    week_start DATE NOT NULL,
+    week_end DATE NOT NULL,
+    hours DECIMAL(10,2) NOT NULL DEFAULT 0,
+    hourly_rate DECIMAL(10,2) NOT NULL DEFAULT 0,
+    gross_pay DECIMAL(10,2) NOT NULL DEFAULT 0,
+    expenses_total DECIMAL(10,2) NOT NULL DEFAULT 0,
+    net_pay DECIMAL(10,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_employee_paychecks_employee_id ON employee_paychecks(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_paychecks_week ON employee_paychecks(week_start, week_end);
+
 -- Triggers
 CREATE TRIGGER update_employees_updated_at BEFORE UPDATE ON employees
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -390,6 +406,7 @@ ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE employee_expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE kiosk_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_paychecks ENABLE ROW LEVEL SECURITY;
 
 -- Basic policies (tighten in production)
 CREATE POLICY "Employees readable by admin" ON employees FOR SELECT USING (
@@ -399,6 +416,10 @@ CREATE POLICY "Time entries readable by admin" ON time_entries FOR SELECT USING 
     EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
 );
 CREATE POLICY "Employee expenses readable by admin" ON employee_expenses FOR SELECT USING (
+    EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+
+CREATE POLICY "Employee paychecks readable by admin" ON employee_paychecks FOR SELECT USING (
     EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
 );
 
