@@ -48,23 +48,28 @@ export default function Deposits() {
       return
     }
 
-    // Get first user as placeholder for created_by
-    const { data: users } = await supabase.from('users').select('id').limit(1).single()
-    
-    if (!users) {
-      alert('Error: No users found. Please add users first.')
+    // Use logged-in admin from session
+    const adminStr = typeof window !== 'undefined' ? sessionStorage.getItem('admin_user') : null
+    const adminUser = adminStr ? JSON.parse(adminStr) : null
+    if (!adminUser) {
+      alert('Please login as admin to add deposits')
       return
     }
 
-    const { error } = await supabase.from('deposits').insert([{
-      vendor_id: newDeposit.vendor_id,
-      amount: parseFloat(newDeposit.amount),
-      date: newDeposit.date,
-      notes: newDeposit.notes || null,
-      created_by_user_id: (users as any).id,
-    }] as any)
+    const res = await fetch('/api/deposits/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vendor_id: newDeposit.vendor_id,
+        amount: parseFloat(newDeposit.amount),
+        date: newDeposit.date,
+        notes: newDeposit.notes || null,
+        created_by_user_id: adminUser.id,
+      })
+    })
+    const json = await res.json()
 
-    if (!error) {
+    if (res.ok) {
       setNewDeposit({
         vendor_id: '',
         amount: '',
@@ -74,7 +79,7 @@ export default function Deposits() {
       setShowModal(false)
       loadData()
     } else {
-      alert('Failed to add deposit: ' + error.message)
+      alert('Failed to add deposit: ' + (json?.error || 'Unknown error'))
     }
   }
 

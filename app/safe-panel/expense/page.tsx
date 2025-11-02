@@ -116,9 +116,10 @@ export default function RecordExpense() {
         }
       }
 
-      const { error } = await supabase
-        .from('expenses')
-        .insert([{
+      const res = await fetch('/api/expenses/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           vendor_id: selectedVendor,
           user_id: user.id,
           amount: parseFloat(amount),
@@ -126,10 +127,12 @@ export default function RecordExpense() {
           date: date,
           notes: notes || null,
           receipt_url: receiptUrl,
-        }] as any)
+        })
+      })
+      const json = await res.json()
 
-      if (error) {
-        console.error('Error recording expense:', error)
+      if (!res.ok) {
+        console.error('Error recording expense:', json)
         alert('Failed to record expense. Please try again.')
         return
       }
