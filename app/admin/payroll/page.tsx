@@ -78,6 +78,7 @@ export default function PayrollPage() {
       return
     }
     alert('Pay recorded')
+    await load()
   }
 
   const printDetail = () => {
@@ -91,18 +92,24 @@ export default function PayrollPage() {
     const net = Number((gross - expenses).toFixed(2))
     w.document.write(`
       <html><head><title>Weekly Pay</title>
-      <style>body{font-family:monospace;padding:20px} .line{border-top:1px dashed #000;margin:10px 0}</style>
+      <style>
+        @page { size: 80mm auto; margin: 4mm; }
+        body{font-family:monospace; padding:0; width: 72mm; font-size: 12px}
+        .center{text-align:center}
+        .line{border-top:1px dashed #000;margin:8px 0}
+        .row{display:flex;justify-content:space-between}
+      </style>
       </head><body>
-      <div style="text-align:center;font-weight:bold">WEEKLY PAY REPORT</div>
+      <div class="center" style="font-weight:bold">WEEKLY PAY REPORT</div>
       <div class="line"></div>
-      <div>Employee: ${selected.employee.name}</div>
-      <div>Week: ${start} to ${end}</div>
+      <div class="row"><span>Employee</span><span>${selected.employee.name}</span></div>
+      <div class="row"><span>Week</span><span>${start} → ${end}</span></div>
       <div class="line"></div>
-      <div><b>Hours</b>: ${hours.toFixed(2)}</div>
-      <div><b>Rate</b>: $${hr.toFixed(2)}</div>
-      <div><b>Gross</b>: $${gross.toFixed(2)}</div>
-      <div><b>Deductions</b>: $${expenses.toFixed(2)}</div>
-      <div><b>Net Pay</b>: $${net.toFixed(2)}</div>
+      <div class="row"><b>Hours</b><b>${hours.toFixed(2)}</b></div>
+      <div class="row"><b>Rate</b><b>$${hr.toFixed(2)}</b></div>
+      <div class="row"><b>Gross</b><b>$${gross.toFixed(2)}</b></div>
+      <div class="row"><b>Deductions</b><b>$${expenses.toFixed(2)}</b></div>
+      <div class="row"><b>Net Pay</b><b>$${net.toFixed(2)}</b></div>
       <div class="line"></div>
       <div><b>Daily Details</b></div>
       ${selected.entries.map((e:any)=>{
@@ -157,7 +164,11 @@ export default function PayrollPage() {
                     <td className="px-4 py-3 text-sm text-right">{r.totalHours.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right">${r.expensesTotal.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right">
-                      <button onClick={()=>openDetail(r)} className="btn-secondary">Details</button>
+                      {r.paid ? (
+                        <span className="text-green-700 text-sm">Paid {new Date(r.paid_at).toLocaleString()}</span>
+                      ) : (
+                        <button onClick={()=>openDetail(r)} className="btn-secondary">Details</button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -186,7 +197,7 @@ export default function PayrollPage() {
               <input type="number" step="0.01" value={rate} onChange={e=>setRate(e.target.value)} className="input-field" />
             </div>
             <div className="flex gap-3">
-              <button onClick={recordPay} className="btn-primary">Record Pay</button>
+              <button onClick={recordPay} className="btn-primary" disabled={!!selected.paid}>Record Pay</button>
               <button onClick={printDetail} className="btn-secondary">Print Report</button>
               <button onClick={()=>setSelected(null)} className="ml-auto btn-secondary">Close</button>
             </div>

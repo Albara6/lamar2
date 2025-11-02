@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const endExclusive = new Date(endDate)
     endExclusive.setDate(endExclusive.getDate() + 1)
 
-    const [{ data: employees }, { data: entries }, { data: exps }] = await Promise.all([
+    const [{ data: employees }, { data: entries }, { data: exps }, { data: checks }] = await Promise.all([
       (supabaseAdmin as any).from('employees').select('*').eq('active', true),
       (supabaseAdmin as any)
         .from('time_entries')
@@ -32,6 +32,11 @@ export async function GET(request: NextRequest) {
         .select('*')
         .gte('timestamp', startDate.toISOString())
         .lt('timestamp', endExclusive.toISOString()),
+      (supabaseAdmin as any)
+        .from('employee_paychecks')
+        .select('*')
+        .eq('week_start', start)
+        .eq('week_end', end),
     ])
 
     const employeeMap: Record<string, any> = {}
@@ -64,12 +69,19 @@ export async function GET(request: NextRequest) {
       bucket.expensesTotal += Number(x.amount || 0)
     }
 
+    const paycheckByEmp: Record<string, any> = {}
+    for (const c of checks || []) {
+      paycheckByEmp[c.employee_id] = c
+    }
+
     const result = Object.values(employeeMap).map((b: any) => ({
       employee: b.employee,
       totalHours: Number(b.totalHours.toFixed(2)),
       expensesTotal: Number(b.expensesTotal.toFixed(2)),
       entries: b.entries,
       expenses: b.expenses,
+      paid: paycheckByEmp[b.employee.id] ? true : false,
+      paid_at: paycheckByEmp[b.employee.id]?.created_at || null,
       start: toDateOnly(startDate).toISOString().slice(0, 10),
       end: toDateOnly(endDate).toISOString().slice(0, 10),
     }))
