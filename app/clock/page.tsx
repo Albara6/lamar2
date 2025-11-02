@@ -11,6 +11,7 @@ export default function ClockKiosk() {
   const [expense, setExpense] = useState({ amount: '', description: '' })
   const [keyManual, setKeyManual] = useState('')
   const [readingKey, setReadingKey] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
   const readFileAsText = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -59,6 +60,14 @@ export default function ClockKiosk() {
     } finally {
       setReadingKey(false)
     }
+  }
+
+  const handleVerifySelectedFile = async () => {
+    if (!selectedFile) {
+      setError('Select a USB key file first')
+      return
+    }
+    await handleKeyUpload(selectedFile)
   }
 
   const handleManualUnlock = async () => {
@@ -122,13 +131,16 @@ export default function ClockKiosk() {
         {!unlocked && (
           <div className="mb-6">
             <p className="mb-2">Insert your USB key and select the key file to unlock:</p>
-            <input
-              type="file"
-              accept=".txt,.key,.json,text/plain,application/json"
-              onChange={(e) => e.target.files && e.target.files[0] && handleKeyUpload(e.target.files[0])}
-              disabled={readingKey}
-            />
-            {readingKey && <p className="text-sm text-gray-600 mt-2">Reading key…</p>}
+            <div className="flex items-center gap-3">
+              <input
+                type="file"
+                accept=".txt,.key,.json,text/plain,application/json"
+                onChange={(e) => setSelectedFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+                disabled={readingKey}
+              />
+              <button onClick={handleVerifySelectedFile} className="btn-primary px-4 py-2" disabled={readingKey}>Verify file</button>
+            </div>
+            {readingKey && <p className="text-sm text-gray-600 mt-2">Verifying…</p>}
             <div className="mt-4 p-3 bg-gray-50 rounded border">
               <p className="text-sm text-gray-700 mb-2">Or paste the code from the USB file:</p>
               <div className="flex gap-2">
