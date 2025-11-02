@@ -11,18 +11,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
     }
 
-    // Prevent duplicate payments for the same employee and week
-    const { data: existing, error: existErr } = await (supabaseAdmin as any)
-      .from('employee_paychecks')
-      .select('id')
-      .eq('employee_id', employee_id)
-      .eq('week_start', week_start)
-      .eq('week_end', week_end)
-      .limit(1)
-    if (existErr) return NextResponse.json({ error: existErr.message }, { status: 500 })
-    if (existing && existing.length > 0) {
-      return NextResponse.json({ error: 'This week is already paid for this employee.' }, { status: 409 })
-    }
+    // Allow multiple partial payments within the same week
 
     const payload = {
       employee_id,

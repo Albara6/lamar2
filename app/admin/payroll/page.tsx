@@ -54,10 +54,10 @@ export default function PayrollPage() {
 
   const recordPay = async () => {
     if (!selected) return
-    const hours = selected.totalHours || 0
+    const hours = selected.remainingHours || 0
     const hr = Number(rate || 0)
     const gross = Number((hours * hr).toFixed(2))
-    const expenses = Number((selected.expensesTotal || 0).toFixed(2))
+    const expenses = Number((selected.remainingExpenses || 0).toFixed(2))
     const net = Number((gross - expenses).toFixed(2))
     const res = await fetch('/api/payroll/record', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -85,10 +85,10 @@ export default function PayrollPage() {
     if (!selected) return
     const w = window.open('', '_blank')
     if (!w) return
-    const hours = selected.totalHours || 0
+    const hours = selected.remainingHours || 0
     const hr = Number(rate || selected.employee.hourly_rate || 0)
     const gross = Number((hours * hr).toFixed(2))
-    const expenses = Number((selected.expensesTotal || 0).toFixed(2))
+    const expenses = Number((selected.remainingExpenses || 0).toFixed(2))
     const net = Number((gross - expenses).toFixed(2))
     w.document.write(`
       <html><head><title>Weekly Pay</title>
@@ -152,8 +152,8 @@ export default function PayrollPage() {
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Employee</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Hours</th>
-                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Deductions</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Hours (remaining)</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Deductions (remaining)</th>
                   <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Actions</th>
                 </tr>
               </thead>
@@ -161,14 +161,11 @@ export default function PayrollPage() {
                 {rows.map((r) => (
                   <tr key={r.employee.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">{r.employee.name}</td>
-                    <td className="px-4 py-3 text-sm text-right">{r.totalHours.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-right">${r.expensesTotal.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right">{r.remainingHours.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right">${r.remainingExpenses.toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right">
-                      {r.paid ? (
-                        <span className="text-green-700 text-sm">Paid {new Date(r.paid_at).toLocaleString()}</span>
-                      ) : (
-                        <button onClick={()=>openDetail(r)} className="btn-secondary">Details</button>
-                      )}
+                      <div className="text-xs text-gray-600 mb-1">Paid: {r.paidHours?.toFixed(2) || '0.00'}h · ${r.paidExpenses?.toFixed(2) || '0.00'}</div>
+                      <button onClick={()=>openDetail(r)} className="btn-secondary">Details</button>
                     </td>
                   </tr>
                 ))}
@@ -185,11 +182,11 @@ export default function PayrollPage() {
             <div className="grid md:grid-cols-2 gap-4 mb-4">
               <div className="p-3 bg-gray-50 rounded">
                 <div className="text-sm text-gray-600">Hours</div>
-                <div className="text-2xl font-bold">{selected.totalHours.toFixed(2)}</div>
+                <div className="text-2xl font-bold">{selected.remainingHours.toFixed(2)}</div>
               </div>
               <div className="p-3 bg-gray-50 rounded">
                 <div className="text-sm text-gray-600">Deductions</div>
-                <div className="text-2xl font-bold">${selected.expensesTotal.toFixed(2)}</div>
+                <div className="text-2xl font-bold">${selected.remainingExpenses.toFixed(2)}</div>
               </div>
             </div>
             <div className="mb-3">
@@ -197,7 +194,7 @@ export default function PayrollPage() {
               <input type="number" step="0.01" value={rate} onChange={e=>setRate(e.target.value)} className="input-field" />
             </div>
             <div className="flex gap-3">
-              <button onClick={recordPay} className="btn-primary" disabled={!!selected.paid}>Record Pay</button>
+              <button onClick={recordPay} className="btn-primary" disabled={(selected.remainingHours<=0 && selected.remainingExpenses<=0)}>Record Pay</button>
               <button onClick={printDetail} className="btn-secondary">Print Report</button>
               <button onClick={()=>setSelected(null)} className="ml-auto btn-secondary">Close</button>
             </div>

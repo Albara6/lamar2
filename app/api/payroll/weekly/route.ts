@@ -69,22 +69,37 @@ export async function GET(request: NextRequest) {
       bucket.expensesTotal += Number(x.amount || 0)
     }
 
-    const paycheckByEmp: Record<string, any> = {}
+    const paidAgg: Record<string, { hours: number; expenses: number; lastPaidAt: string | null }> = {}
     for (const c of checks || []) {
-      paycheckByEmp[c.employee_id] = c
+      const key = c.employee_id
+      if (!paidAgg[key]) paidAgg[key] = { hours: 0, expenses: 0, lastPaidAt: null }
+      paidAgg[key].hours += Number(c.hours || 0)
+      paidAgg[key].expenses += Number(c.expenses_total || 0)
+      if (!paidAgg[key].lastPaidAt || new Date(c.created_at).getTime() > new Date(paidAgg[key].lastPaidAt as string).getTime()) {
+        paidAgg[key].lastPaidAt = c.created_at
+      }
     }
 
-    const result = Object.values(employeeMap).map((b: any) => ({
-      employee: b.employee,
-      totalHours: Number(b.totalHours.toFixed(2)),
-      expensesTotal: Number(b.expensesTotal.toFixed(2)),
-      entries: b.entries,
-      expenses: b.expenses,
-      paid: paycheckByEmp[b.employee.id] ? true : false,
-      paid_at: paycheckByEmp[b.employee.id]?.created_at || null,
-      start: toDateOnly(startDate).toISOString().slice(0, 10),
-      end: toDateOnly(endDate).toISOString().slice(0, 10),
-    }))
+    const result = Object.values(employeeMap).map((b: any) => {
+      const paid = paidAgg[b.employee.id] || { hours: 0, expenses: 0, lastPaidAt: null }
+      const remainingHours = Math.max(0, b.totalHours - paid.hours)
+      const remainingExpenses = Math.max(0, b.expensesTotal - paid.expenses)
+      return {
+        employee: b.employee,
+        totalHours: Number(b.totalHours.toFixed(2)),
+        expensesTotal: Number(b.expensesTotal.toFixed(2)),
+        paidHours: Number(paid.hours.toFixed(2)),
+        paidExpenses: Number(paid.expenses.toFixed(2)),
+        remainingHours: Number(remainingHours.toFixed(2)),
+        remainingExpenses: Number(remainingExpenses.toFixed(2)),
+        entries: b.entries,
+        expenses: b.expenses,
+        paid: paid.hours > 0 || paid.expenses > 0,
+        paid_at: paid.lastPaidAt,
+        start: toDateOnly(startDate).toISOString().slice(0, 10),
+        end: toDateOnly(endDate).toISOString().slice(0, 10),
+      }
+    })
 
     return NextResponse.json({ payroll: result })
   } catch (e: any) {
