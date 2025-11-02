@@ -9,20 +9,67 @@ export default function ClockKiosk() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [expense, setExpense] = useState({ amount: '', description: '' })
+  const [keyManual, setKeyManual] = useState('')
+  const [readingKey, setReadingKey] = useState(false)
 
-  const handleKeyUpload = async (file: File) => {
-    const text = await file.text()
-    setError('')
-    setMessage('')
-    const key = text.trim()
-    const res = await fetch('/api/kiosk/verify-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) })
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result || ''))
+      reader.onerror = () => reject(reader.error)
+      try {
+        reader.readAsText(file)
+      } catch (e) {
+        reject(e)
+      }
+    })
+
+  const verifyKey = async (key: string) => {
+    const res = await fetch('/api/kiosk/verify-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key.trim() })
+    })
     const data = await res.json()
     if (res.ok && data.success) {
       setUnlocked(true)
       setMessage('Kiosk unlocked')
+      setError('')
     } else {
       setError(data.error || 'Invalid key')
     }
+  }
+
+  const handleKeyUpload = async (file: File) => {
+    setReadingKey(true)
+    setError('')
+    setMessage('')
+    try {
+      // Try the modern API first
+      let text = ''
+      try {
+        text = await (file as any).text?.()
+      } catch {}
+      if (!text) {
+        text = await readFileAsText(file)
+      }
+      await verifyKey(text)
+    } catch (e: any) {
+      setError('Could not read the USB file. You can paste the code manually below.')
+    } finally {
+      setReadingKey(false)
+    }
+  }
+
+  const handleManualUnlock = async () => {
+    if (!keyManual.trim()) {
+      setError('Enter the USB code')
+      return
+    }
+    setReadingKey(true)
+    setError('')
+    await verifyKey(keyManual)
+    setReadingKey(false)
   }
 
   const handleNumberClick = (num: string) => {
@@ -75,7 +122,20 @@ export default function ClockKiosk() {
         {!unlocked && (
           <div className="mb-6">
             <p className="mb-2">Insert your USB key and select the key file to unlock:</p>
-            <input type="file" accept=".txt,.key,.json" onChange={(e) => e.target.files && handleKeyUpload(e.target.files[0])} />
+            <input
+              type="file"
+              accept=".txt,.key,.json,text/plain,application/json"
+              onChange={(e) => e.target.files && e.target.files[0] && handleKeyUpload(e.target.files[0])}
+              disabled={readingKey}
+            />
+            {readingKey && <p className="text-sm text-gray-600 mt-2">Reading key…</p>}
+            <div className="mt-4 p-3 bg-gray-50 rounded border">
+              <p className="text-sm text-gray-700 mb-2">Or paste the code from the USB file:</p>
+              <div className="flex gap-2">
+                <input className="border p-2 rounded flex-1" value={keyManual} onChange={e=>setKeyManual(e.target.value)} placeholder="Paste code here" />
+                <button onClick={handleManualUnlock} className="btn-primary px-4" disabled={readingKey}>Unlock</button>
+              </div>
+            </div>
           </div>
         )}
 
