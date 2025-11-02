@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { calculateSafeBalance, generateWithdrawalNumber } from '@/lib/calculations'
 import type { User } from '@/lib/auth'
+import { verifyPin } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,10 @@ export default function ManagerWithdrawal() {
   const [loadingBalance, setLoadingBalance] = useState(true)
   const [success, setSuccess] = useState(false)
   const [withdrawalId, setWithdrawalId] = useState('')
+  const [adminPin, setAdminPin] = useState('')
+  const [adminAuth, setAdminAuth] = useState(false)
+  const [adminError, setAdminError] = useState('')
+  const [adminVerifying, setAdminVerifying] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -27,14 +32,6 @@ export default function ManagerWithdrawal() {
       return
     }
     const userData = JSON.parse(userStr)
-    
-    // Check if user is manager or admin
-    if (userData.role !== 'manager' && userData.role !== 'admin') {
-      alert('Access denied. Manager role required.')
-      router.push('/safe-panel/home')
-      return
-    }
-    
     setUser(userData)
     loadSafeBalance()
   }, [router])
@@ -93,6 +90,15 @@ export default function ManagerWithdrawal() {
       return
     }
 
+    // Require admin authorization
+    if (!adminAuth) {
+      setAdminError('')
+      // show admin PIN modal by toggling state handled in UI
+      const modal = document.getElementById('admin-pin-modal') as HTMLDialogElement | null
+      if (modal) modal.showModal?.()
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -120,6 +126,30 @@ export default function ManagerWithdrawal() {
       alert('An error occurred. Please try again.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const verifyAdmin = async () => {
+    if (adminPin.length !== 6) {
+      setAdminError('Enter 6-digit admin PIN')
+      return
+    }
+    setAdminVerifying(true)
+    setAdminError('')
+    try {
+      const adminUser = await verifyPin(adminPin)
+      if (!adminUser || adminUser.role !== 'admin') {
+        setAdminError('Admin PIN required')
+        return
+      }
+      setAdminAuth(true)
+      const modal = document.getElementById('admin-pin-modal') as HTMLDialogElement | null
+      if (modal) modal.close?.()
+      // proceed to submit now that admin is authorized
+      await handleSubmit()
+    } finally {
+      setAdminVerifying(false)
+      setAdminPin('')
     }
   }
 
@@ -234,6 +264,31 @@ export default function ManagerWithdrawal() {
 
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+          {/* Admin PIN Modal */}
+          <dialog id="admin-pin-modal" className="modal">
+            <div className="modal-box">
+              <h3 className="font-bold text-lg mb-2">Admin Authorization</h3>
+              <p className="text-sm text-gray-600 mb-4">Enter admin 6-digit PIN to authorize this withdrawal.</p>
+              <div className="flex justify-center gap-3 mb-3">
+                {[0,1,2,3,4,5].map(i => (
+                  <div key={i} className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-lg font-bold ${adminPin.length>i?'bg-yellow-600 border-yellow-600 text-white':'bg-gray-100 border-gray-300 text-transparent'}`}>{adminPin.length>i?'•':'0'}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {['1','2','3','4','5','6','7','8','9'].map(num => (
+                  <button key={num} onClick={()=> adminPin.length<6 && setAdminPin(adminPin+num)} className="touch-button bg-gray-100 hover:bg-gray-200 h-12 text-xl">{num}</button>
+                ))}
+                <button onClick={()=> setAdminPin('')} className="touch-button bg-red-100 hover:bg-red-200 h-12 text-sm text-red-700">Clear</button>
+                <button onClick={()=> adminPin.length<6 && setAdminPin(adminPin+'0')} className="touch-button bg-gray-100 hover:bg-gray-200 h-12 text-xl">0</button>
+                <button onClick={()=> setAdminPin(adminPin.slice(0,-1))} className="touch-button bg-gray-100 hover:bg-gray-200 h-12 text-xl">⌫</button>
+              </div>
+              {adminError && <p className="text-red-600 text-sm mb-3">{adminError}</p>}
+              <div className="modal-action">
+                <button onClick={()=> (document.getElementById('admin-pin-modal') as HTMLDialogElement | null)?.close?.()} className="btn-secondary">Cancel</button>
+                <button onClick={verifyAdmin} className="btn-primary" disabled={adminVerifying}>{adminVerifying?'Verifying...':'Authorize'}</button>
+              </div>
+            </div>
+          </dialog>
           {/* Safe Balance */}
           <div className="mb-8 p-6 bg-gradient-to-r from-yellow-50 to-yellow-100 rounded-xl">
             <div className="text-sm font-medium text-gray-700 mb-2">Current Safe Balance</div>

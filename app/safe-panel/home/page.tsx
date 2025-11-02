@@ -59,6 +59,15 @@ export default function SafePanelHome() {
       color: 'bg-blue-600 hover:bg-blue-700',
     },
     {
+      title: 'Withdraw from Safe',
+      description: 'Manager/Admin approval required',
+      icon: (
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z" />
+      ),
+      href: '/safe-panel/withdrawal',
+      color: 'bg-yellow-600 hover:bg-yellow-700',
+    },
+    {
       title: 'End of Shift',
       description: 'Close shift and reconcile',
       icon: (
