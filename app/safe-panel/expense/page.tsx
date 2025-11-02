@@ -39,15 +39,12 @@ export default function RecordExpense() {
   }, [router])
 
   const loadVendors = async () => {
-    const { data, error } = await supabase
-      .from('vendors')
-      .select('id, name')
-      .eq('type', 'vendor')
-      .eq('active', true)
-      .order('name')
-
-    if (!error && data) {
-      setVendors(data)
+    try {
+      const res = await fetch('/api/vendors?type=vendor')
+      const json = await res.json()
+      if (res.ok) setVendors(json.vendors || [])
+    } catch (e) {
+      console.error(e)
     }
   }
 

@@ -30,14 +30,11 @@ export default function Deposits() {
         .select('*, vendors(name), users(name)')
         .order('date', { ascending: false })
 
-      const { data: vendorsData } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('type', 'deposit_source')
-        .eq('active', true)
+      const vendorsRes = await fetch('/api/vendors?type=deposit_source')
+      const vendorsJson = await vendorsRes.json()
 
       setDeposits(depositsData || [])
-      setVendors(vendorsData || [])
+      setVendors(vendorsRes.ok ? (vendorsJson.vendors || []) : [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
