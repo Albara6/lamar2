@@ -32,8 +32,9 @@ export default function RecordSales() {
   const handleCalculateCashSales = async () => {
     setCalculating(true)
     try {
-      const calculated = await calculateCashSalesForDate(date)
-      setCashSales(calculated)
+      const res = await fetch('/api/sales/cash?date=' + encodeURIComponent(date))
+      const json = await res.json()
+      if (res.ok) setCashSales(json.cashSales)
     } catch (error) {
       console.error('Error calculating cash sales:', error)
       alert('Failed to calculate cash sales')

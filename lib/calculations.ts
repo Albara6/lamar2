@@ -20,27 +20,15 @@ export async function calculateSafeBalance(): Promise<number> {
 }
 
 export async function calculateCashSalesForDate(date: string): Promise<number> {
-  const dateStr = format(new Date(date), 'yyyy-MM-dd')
-  
-  // Get all drops for that day
-  const { data: drops } = await supabase
-    .from('safe_drops')
-    .select('amount')
-    .gte('timestamp', `${dateStr}T00:00:00`)
-    .lt('timestamp', `${dateStr}T23:59:59`)
-    .eq('confirmed', true)
-
-  // Get cash expenses for that day
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('amount')
-    .eq('date', dateStr)
-    .eq('payment_type', 'cash')
-
-  const totalDrops = drops?.reduce((sum: number, drop: any) => sum + drop.amount, 0) || 0
-  const totalCashExpenses = expenses?.reduce((sum: number, expense: any) => sum + expense.amount, 0) || 0
-
-  return totalDrops + totalCashExpenses
+  // Prefer using the server endpoint for correct RLS and 3am cutoff
+  try {
+    const res = await fetch('/api/sales/cash?date=' + encodeURIComponent(date))
+    if (res.ok) {
+      const json = await res.json()
+      return json.cashSales || 0
+    }
+  } catch {}
+  return 0
 }
 
 export async function calculateExpectedSafeBalance(): Promise<number> {

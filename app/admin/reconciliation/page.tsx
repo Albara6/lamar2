@@ -31,7 +31,9 @@ export default function Reconciliation() {
   const handleCalculate = async () => {
     setLoading(true)
     try {
-      const result = await calculateBankVariance(startDate, endDate)
+      const params = new URLSearchParams({ start: startDate, end: endDate })
+      const res = await fetch('/api/reconciliation?' + params.toString())
+      const result = await res.json()
       setVariance(result)
     } catch (error) {
       console.error('Error calculating variance:', error)
