@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { employee_id, week_start, week_end, hours, hourly_rate, expenses_total, gross_pay, net_pay } = await request.json()
+    const { employee_id, week_start, week_end, hours, hourly_rate, expenses_total, gross_pay, net_pay, created_by_user_id } = await request.json()
 
     if (!employee_id || !week_start || !week_end) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -57,6 +57,46 @@ export async function POST(request: NextRequest) {
     ])
     if (u1.error) return NextResponse.json({ error: u1.error.message }, { status: 500 })
     if (u2.error) return NextResponse.json({ error: u2.error.message }, { status: 500 })
+
+    // Create a business expense under vendor "Payroll" for net_pay
+    // Ensure vendor exists
+    const { data: vendorRow } = await (supabaseAdmin as any)
+      .from('vendors')
+      .select('*')
+      .eq('name', 'Payroll')
+      .limit(1)
+      .maybeSingle()
+    let payrollVendorId = vendorRow?.id
+    if (!payrollVendorId) {
+      const { data: createdVendor, error: createVendErr } = await (supabaseAdmin as any)
+        .from('vendors')
+        .insert({ name: 'Payroll', type: 'vendor', active: true } as any)
+        .select('*')
+        .single()
+      if (createVendErr) return NextResponse.json({ error: createVendErr.message }, { status: 500 })
+      payrollVendorId = createdVendor.id
+    }
+
+    // Fetch employee for notes
+    const { data: emp } = await (supabaseAdmin as any)
+      .from('employees')
+      .select('name')
+      .eq('id', employee_id)
+      .single()
+
+    const notes = `Payroll - ${emp?.name || employee_id} ${week_start} → ${week_end}`
+    const expenseDate = week_end
+    const { error: expErr } = await (supabaseAdmin as any)
+      .from('expenses')
+      .insert({
+        vendor_id: payrollVendorId,
+        user_id: created_by_user_id || null,
+        amount: Number(payload.net_pay),
+        payment_type: 'check',
+        date: expenseDate,
+        notes,
+      } as any)
+    if (expErr) return NextResponse.json({ error: expErr.message }, { status: 500 })
 
     return NextResponse.json({ success: true })
   } catch (e: any) {

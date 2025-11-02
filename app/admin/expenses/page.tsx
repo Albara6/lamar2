@@ -38,10 +38,9 @@ export default function Expenses() {
 
   const handleAddVendor = async () => {
     if (!newVendor.name.trim()) return
-
-    const { data, error } = await supabase.from('vendors').insert([newVendor] as any).select().single()
-
-    if (!error && data) {
+    const res = await fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newVendor) })
+    const json = await res.json()
+    if (res.ok && json.vendor) {
       setNewVendor({ name: '', type: 'vendor' })
       setShowVendorModal(false)
       loadData()

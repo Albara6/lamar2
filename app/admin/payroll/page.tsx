@@ -21,6 +21,7 @@ export default function PayrollPage() {
   const [start, setStart] = useState(initial.start)
   const [end, setEnd] = useState(initial.end)
   const [rows, setRows] = useState<any[]>([])
+  const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<any | null>(null)
   const [rate, setRate] = useState('')
@@ -32,6 +33,9 @@ export default function PayrollPage() {
       const res = await fetch('/api/payroll/weekly?' + params.toString())
       const json = await res.json()
       if (res.ok) setRows(json.payroll || [])
+      const histRes = await fetch('/api/payroll/history?' + params.toString())
+      const histJson = await histRes.json()
+      if (histRes.ok) setHistory(histJson.paychecks || [])
     } finally {
       setLoading(false)
     }
@@ -59,6 +63,9 @@ export default function PayrollPage() {
     const gross = Number((hours * hr).toFixed(2))
     const expenses = Number((selected.remainingExpenses || 0).toFixed(2))
     const net = Number((gross - expenses).toFixed(2))
+    // Grab admin user id for expense logging
+    const adminStr = typeof window !== 'undefined' ? sessionStorage.getItem('admin_user') : null
+    const adminUser = adminStr ? JSON.parse(adminStr) : null
     const res = await fetch('/api/payroll/record', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -70,6 +77,7 @@ export default function PayrollPage() {
         gross_pay: gross,
         expenses_total: expenses,
         net_pay: net,
+        created_by_user_id: adminUser?.id || null,
       })
     })
     const json = await res.json()
@@ -167,6 +175,41 @@ export default function PayrollPage() {
                       <div className="text-xs text-gray-600 mb-1">Paid: {r.paidHours?.toFixed(2) || '0.00'}h · ${r.paidExpenses?.toFixed(2) || '0.00'}</div>
                       <button onClick={()=>openDetail(r)} className="btn-secondary">Details</button>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Payroll History */}
+      <div className="card mt-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Payroll History</h2>
+        {history.length === 0 ? (
+          <p className="text-gray-500">No paychecks in this range.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">When</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Employee</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Hours</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Gross</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Deductions</th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Net</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {history.map((p: any) => (
+                  <tr key={p.id}>
+                    <td className="px-4 py-3 text-sm text-gray-900">{new Date(p.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900">{p.employees?.name || p.employee_id}</td>
+                    <td className="px-4 py-3 text-sm text-right">{Number(p.hours).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right">${Number(p.gross_pay).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right">${Number(p.expenses_total).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right">${Number(p.net_pay).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

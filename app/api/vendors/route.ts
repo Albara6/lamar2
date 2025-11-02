@@ -21,3 +21,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const { name, type } = await request.json()
+    if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+    const vendorType = type === 'deposit_source' ? 'deposit_source' : 'vendor'
+    const { data, error } = await (supabaseAdmin as any)
+      .from('vendors')
+      .insert({ name, type: vendorType, active: true } as any)
+      .select('*')
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ vendor: data })
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
